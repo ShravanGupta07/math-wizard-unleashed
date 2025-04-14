@@ -41,7 +41,7 @@ const Header = () => {
     <header className="sticky top-0 z-10 bg-background/80 backdrop-blur-md border-b border-border">
       <div className="container py-3 flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <Link to="/app" className="flex items-center gap-2 font-bold tracking-tight">
+          <Link to="/" className="flex items-center gap-2 font-bold tracking-tight">
             <Calculator className="h-5 w-5 text-primary" />
             <span>MathWizard</span>
           </Link>
@@ -49,28 +49,28 @@ const Header = () => {
           {!isMobile && (
             <nav className="ml-8 flex items-center space-x-1">
               <NavItem 
-                to="/app/solver" 
+                to="/solver" 
                 icon={Calculator} 
                 label="Solver" 
-                isActive={location.pathname === "/app" || location.pathname === "/app/solver"}
+                isActive={location.pathname === "/" || location.pathname === "/solver"}
               />
               <NavItem 
-                to="/app/history" 
+                to="/history" 
                 icon={History} 
                 label="History" 
-                isActive={location.pathname === "/app/history"}
+                isActive={location.pathname === "/history"}
               />
               <NavItem 
-                to="/app/examples" 
+                to="/examples" 
                 icon={BarChart3} 
                 label="Examples" 
-                isActive={location.pathname === "/app/examples"}
+                isActive={location.pathname === "/examples"}
               />
               <NavItem 
-                to="/app/about" 
+                to="/about" 
                 icon={Info} 
                 label="About" 
-                isActive={location.pathname === "/app/about"}
+                isActive={location.pathname === "/about"}
               />
             </nav>
           )}
@@ -81,14 +81,14 @@ const Header = () => {
           
           {isAuthenticated ? (
             <Button variant="outline" asChild size="sm">
-              <Link to="/app/profile">
+              <Link to="/profile">
                 <User className="h-4 w-4 mr-2" />
                 Profile
               </Link>
             </Button>
           ) : (
             <Button variant="outline" asChild size="sm">
-              <Link to="/app/profile">
+              <Link to="/profile">
                 <User className="h-4 w-4 mr-2" />
                 Sign In
               </Link>
@@ -97,7 +97,7 @@ const Header = () => {
           
           {!isMobile && (
             <Button variant="ghost" size="icon" asChild>
-              <Link to="/app/settings">
+              <Link to="/settings">
                 <Settings className="h-4 w-4" />
                 <span className="sr-only">Settings</span>
               </Link>
