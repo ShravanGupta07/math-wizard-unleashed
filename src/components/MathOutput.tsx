@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -26,12 +27,14 @@ interface MathOutputProps {
 const MathOutput: React.FC<MathOutputProps> = ({ problem, solution, loading }) => {
   const { addToHistory } = useHistory();
   const [activeTab, setActiveTab] = useState("solution");
-  
   const [graphData, setGraphData] = useState<any[] | null>(null);
+  const [solutionSaved, setSolutionSaved] = useState(false);
   
+  // Fix the infinite loop by adding solutionSaved to prevent multiple saves
   useEffect(() => {
-    if (solution && !loading && problem) {
+    if (solution && !loading && problem && !solutionSaved) {
       addToHistory(problem, solution);
+      setSolutionSaved(true);
       
       if (solution.visualization) {
         setGraphData(solution.visualization);
@@ -47,7 +50,14 @@ const MathOutput: React.FC<MathOutputProps> = ({ problem, solution, loading }) =
         setGraphData(null);
       }
     }
-  }, [solution, loading, problem, addToHistory]);
+  }, [solution, loading, problem, addToHistory, solutionSaved]);
+  
+  // Reset solutionSaved when problem changes
+  useEffect(() => {
+    if (problem) {
+      setSolutionSaved(false);
+    }
+  }, [problem]);
   
   const formatSolutionSteps = (solution: MathSolution) => {
     if (solution.steps && solution.steps.length > 0) {
