@@ -1,6 +1,8 @@
+
 import React, { useRef, useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Eraser, Undo2, Save, Trash2 } from "lucide-react";
+import { Eraser, Undo2, Save, Trash2, Check, Loader2 } from "lucide-react";
+import { toast } from "@/components/ui/sonner";
 
 interface DrawingCanvasProps {
   onSave: (imageData: string) => void;
@@ -13,6 +15,9 @@ const DrawingCanvas: React.FC<DrawingCanvasProps> = ({ onSave }) => {
   const [drawingHistory, setDrawingHistory] = useState<ImageData[]>([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
   const [tool, setTool] = useState<"pen" | "eraser">("pen");
+  const [lineWidth, setLineWidth] = useState(3);
+  const [hasDrawing, setHasDrawing] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
 
   // Initialize canvas
   useEffect(() => {
@@ -29,12 +34,15 @@ const DrawingCanvas: React.FC<DrawingCanvasProps> = ({ onSave }) => {
     // Set initial canvas style
     ctx.lineJoin = "round";
     ctx.lineCap = "round";
-    ctx.lineWidth = 3;
+    ctx.lineWidth = lineWidth;
     ctx.strokeStyle = "#000000";
 
     // Set white background
     ctx.fillStyle = "#ffffff";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Add grid pattern for math
+    drawGrid(ctx, canvas.width, canvas.height);
 
     // Save initial state
     const initialState = ctx.getImageData(0, 0, canvas.width, canvas.height);
@@ -43,6 +51,31 @@ const DrawingCanvas: React.FC<DrawingCanvasProps> = ({ onSave }) => {
 
     setContext(ctx);
   }, []);
+
+  const drawGrid = (ctx: CanvasRenderingContext2D, width: number, height: number) => {
+    ctx.save();
+    ctx.strokeStyle = "#e5e7eb"; // Light gray grid
+    ctx.lineWidth = 0.5;
+    
+    // Draw horizontal lines
+    const gridSize = 20;
+    for (let y = gridSize; y < height; y += gridSize) {
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      ctx.lineTo(width, y);
+      ctx.stroke();
+    }
+    
+    // Draw vertical lines
+    for (let x = gridSize; x < width; x += gridSize) {
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, height);
+      ctx.stroke();
+    }
+    
+    ctx.restore();
+  };
 
   // Handle window resize
   useEffect(() => {
@@ -56,6 +89,13 @@ const DrawingCanvas: React.FC<DrawingCanvasProps> = ({ onSave }) => {
       // Resize canvas
       canvas.width = canvas.offsetWidth;
       canvas.height = canvas.offsetHeight;
+      
+      // Redraw white background
+      context.fillStyle = "#ffffff";
+      context.fillRect(0, 0, canvas.width, canvas.height);
+      
+      // Redraw grid
+      drawGrid(context, canvas.width, canvas.height);
       
       // Restore drawing
       context.putImageData(imageData, 0, 0);
@@ -121,11 +161,12 @@ const DrawingCanvas: React.FC<DrawingCanvasProps> = ({ onSave }) => {
       context.lineWidth = 20;
     } else {
       context.strokeStyle = "#000000";
-      context.lineWidth = 3;
+      context.lineWidth = lineWidth;
     }
     
     context.lineTo(x, y);
     context.stroke();
+    setHasDrawing(true);
   };
 
   const stopDrawing = () => {
@@ -154,6 +195,11 @@ const DrawingCanvas: React.FC<DrawingCanvasProps> = ({ onSave }) => {
     
     context.putImageData(imageData, 0, 0);
     setHistoryIndex(newIndex);
+    
+    // Check if we're back to initial state
+    if (newIndex === 0) {
+      setHasDrawing(false);
+    }
   };
 
   const handleClear = () => {
@@ -163,26 +209,41 @@ const DrawingCanvas: React.FC<DrawingCanvasProps> = ({ onSave }) => {
     context.fillStyle = "#ffffff";
     context.fillRect(0, 0, canvas.width, canvas.height);
     
+    // Redraw grid
+    drawGrid(context, canvas.width, canvas.height);
+    
     // Save cleared state
     const clearedState = context.getImageData(0, 0, canvas.width, canvas.height);
     
     // Keep only the initial state and add the cleared state
     setDrawingHistory([drawingHistory[0], clearedState]);
     setHistoryIndex(1);
+    setHasDrawing(false);
   };
 
   const handleSave = () => {
     if (!canvasRef.current) return;
+    if (!hasDrawing) {
+      toast.error("Please draw your math problem before solving");
+      return;
+    }
     
-    const canvas = canvasRef.current;
-    const imageData = canvas.toDataURL("image/png");
-    onSave(imageData);
+    setIsProcessing(true);
+    
+    try {
+      const canvas = canvasRef.current;
+      const imageData = canvas.toDataURL("image/png");
+      onSave(imageData);
+    } catch (error) {
+      console.error("Error saving drawing:", error);
+      toast.error("Failed to process drawing. Please try again.");
+    }
   };
 
   return (
     <div className="flex flex-col gap-4 w-full">
-      <div className="flex justify-between items-center mb-2">
-        <div className="space-x-2">
+      <div className="flex flex-col md:flex-row md:justify-between gap-2">
+        <div className="flex space-x-2 flex-wrap gap-y-2">
           <Button 
             variant={tool === "pen" ? "default" : "outline"} 
             size="sm" 
@@ -197,8 +258,29 @@ const DrawingCanvas: React.FC<DrawingCanvasProps> = ({ onSave }) => {
           >
             <Eraser className="h-4 w-4 mr-1" /> Eraser
           </Button>
+          <div className="flex items-center space-x-1">
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={() => setLineWidth(Math.max(1, lineWidth - 1))}
+              disabled={lineWidth <= 1}
+              className="px-2"
+            >
+              -
+            </Button>
+            <span className="text-xs w-12 text-center">Thickness: {lineWidth}</span>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={() => setLineWidth(Math.min(10, lineWidth + 1))}
+              disabled={lineWidth >= 10}
+              className="px-2"
+            >
+              +
+            </Button>
+          </div>
         </div>
-        <div className="space-x-2">
+        <div className="flex space-x-2">
           <Button variant="outline" size="sm" onClick={handleUndo} disabled={historyIndex <= 0}>
             <Undo2 className="h-4 w-4 mr-1" /> Undo
           </Button>
@@ -223,9 +305,33 @@ const DrawingCanvas: React.FC<DrawingCanvasProps> = ({ onSave }) => {
         />
       </div>
       
-      <Button onClick={handleSave} className="mt-2">
-        <Save className="h-4 w-4 mr-2" /> Solve Drawing
-      </Button>
+      <div className="flex flex-col space-y-2">
+        <p className="text-xs text-muted-foreground">
+          Tips for better recognition:
+        </p>
+        <ul className="text-xs text-muted-foreground list-disc list-inside space-y-1">
+          <li>Write clearly with appropriate spacing</li>
+          <li>For fractions, draw a clear horizontal line between numerator and denominator</li>
+          <li>Write one complete equation or expression</li>
+          <li>Use the grid for alignment</li>
+        </ul>
+        
+        <Button 
+          onClick={handleSave} 
+          disabled={isProcessing || !hasDrawing}
+          className="mt-4"
+        >
+          {isProcessing ? (
+            <>
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" /> Processing
+            </>
+          ) : (
+            <>
+              <Check className="h-4 w-4 mr-2" /> Solve Problem
+            </>
+          )}
+        </Button>
+      </div>
     </div>
   );
 };

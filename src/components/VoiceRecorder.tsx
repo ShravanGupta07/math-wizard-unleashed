@@ -2,7 +2,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Mic, Square, Loader2 } from "lucide-react";
+import { Mic, Square, Loader2, Play, Check } from "lucide-react";
 import { toast } from "@/components/ui/sonner";
 
 interface VoiceRecorderProps {
@@ -13,6 +13,8 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ onRecordingComplete }) =>
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
+  const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
+  const [processingAudio, setProcessingAudio] = useState(false);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const timerRef = useRef<number | null>(null);
@@ -31,10 +33,21 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ onRecordingComplete }) =>
   const startRecording = async () => {
     audioChunksRef.current = [];
     setAudioUrl(null);
+    setAudioBlob(null);
     
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      mediaRecorderRef.current = new MediaRecorder(stream);
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true
+        }
+      });
+      
+      mediaRecorderRef.current = new MediaRecorder(stream, {
+        mimeType: 'audio/webm',
+        audioBitsPerSecond: 128000
+      });
       
       mediaRecorderRef.current.addEventListener("dataavailable", (event) => {
         if (event.data.size > 0) {
@@ -46,7 +59,7 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ onRecordingComplete }) =>
         const audioBlob = new Blob(audioChunksRef.current, { type: "audio/webm" });
         const url = URL.createObjectURL(audioBlob);
         setAudioUrl(url);
-        onRecordingComplete(audioBlob);
+        setAudioBlob(audioBlob);
         
         // Stop all tracks in the stream
         stream.getTracks().forEach(track => track.stop());
@@ -85,7 +98,25 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ onRecordingComplete }) =>
         timerRef.current = null;
       }
       
-      toast.success("Recording completed!");
+      toast.success("Recording completed! Review before solving.");
+    }
+  };
+  
+  const handleSolve = async () => {
+    if (!audioBlob) {
+      toast.error("No recording found. Please record your math problem first.");
+      return;
+    }
+    
+    setProcessingAudio(true);
+    
+    try {
+      onRecordingComplete(audioBlob);
+    } catch (error) {
+      console.error("Error processing audio:", error);
+      toast.error("Failed to process audio. Please try again.");
+    } finally {
+      setProcessingAudio(false);
     }
   };
   
@@ -98,7 +129,7 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ onRecordingComplete }) =>
   return (
     <div className="space-y-4">
       <Card>
-        <CardContent className="pt-6 flex flex-col items-center justify-center min-h-[200px]">
+        <CardContent className="pt-6 flex flex-col items-center justify-center min-h-[220px]">
           {isRecording ? (
             <>
               <div className="flex flex-col items-center justify-center mb-6">
@@ -111,6 +142,9 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ onRecordingComplete }) =>
                   </div>
                 </div>
                 <p className="mt-4 text-sm text-muted-foreground">Recording your math problem...</p>
+                <p className="text-xs text-center text-muted-foreground mt-1">
+                  Speak clearly and slowly, mentioning all mathematical symbols explicitly.
+                </p>
               </div>
               
               <Button 
@@ -133,9 +167,26 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ onRecordingComplete }) =>
                   <p className="text-sm text-muted-foreground mb-4">
                     Review your recording or start a new one
                   </p>
-                  <Button onClick={startRecording}>
-                    <Mic className="h-4 w-4 mr-2" /> Record Again
-                  </Button>
+                  <div className="flex flex-wrap gap-3 justify-center">
+                    <Button onClick={startRecording} variant="outline">
+                      <Mic className="h-4 w-4 mr-2" /> Record Again
+                    </Button>
+                    <Button 
+                      onClick={handleSolve} 
+                      disabled={processingAudio}
+                      className="min-w-[140px]"
+                    >
+                      {processingAudio ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" /> Processing
+                        </>
+                      ) : (
+                        <>
+                          <Check className="h-4 w-4 mr-2" /> Solve Problem
+                        </>
+                      )}
+                    </Button>
+                  </div>
                 </div>
               ) : (
                 <div className="flex flex-col items-center justify-center">
@@ -147,9 +198,14 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ onRecordingComplete }) =>
                   >
                     <Mic className="h-10 w-10 text-primary" />
                   </Button>
-                  <p className="mt-4 text-sm text-center max-w-[250px] text-muted-foreground">
+                  <p className="mt-4 text-sm text-center max-w-[300px] text-muted-foreground">
                     Press the button and speak your math problem clearly
                   </p>
+                  <ul className="text-xs text-muted-foreground mt-3 space-y-1 list-disc list-inside max-w-[300px]">
+                    <li>Say "equals" instead of "equals sign"</li>
+                    <li>Say "x squared" rather than "x to the power of 2"</li>
+                    <li>Speak at a moderate pace with clear pronunciation</li>
+                  </ul>
                 </div>
               )}
             </>

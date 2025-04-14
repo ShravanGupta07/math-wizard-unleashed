@@ -34,24 +34,38 @@ export const solveMathProblem = async (problem: MathProblem): Promise<MathSoluti
     }
     
     // Construct the system prompt based on the type of problem
-    let systemPrompt = "You are MathWizard, an advanced AI specialized in solving mathematics problems. ";
+    let systemPrompt = "You are MathWizard, an advanced AI specialized in solving mathematics problems with extreme accuracy. ";
     
-    systemPrompt += "Always provide clear, simple explanations in plain English without any technical jargon. ";
+    systemPrompt += "Always provide clear, step-by-step explanations that anyone can understand. ";
     systemPrompt += "Start every solution with 'A classic!' followed by a simple explanation anyone can understand. ";
     systemPrompt += "Format the final answer as '【answer】' to highlight it clearly. ";
     systemPrompt += "DO NOT use any LaTeX notations, mathematical symbols, or dollar signs. Write all equations and formulas in plain text format. ";
     systemPrompt += "Break down solutions into simple numbered steps that a middle school student could follow.";
     
+    // Type-specific system prompts for higher accuracy
+    if (problem.type === "voice") {
+      systemPrompt += " For this voice input, focus on correctly interpreting mathematical terminology. ";
+      systemPrompt += " Carefully listen for numbers, operations, and mathematical terms. ";
+      systemPrompt += " If you hear terms like 'x squared', interpret as x^2. If you hear 'square root', interpret as sqrt(). ";
+      systemPrompt += " For fractions, clearly identify numerator and denominator.";
+    } else if (problem.type === "drawing") {
+      systemPrompt += " For this hand-drawn math, focus on correctly interpreting symbols and numbers. ";
+      systemPrompt += " Pay attention to the structure of equations, fractions, exponents, and operation symbols. ";
+      systemPrompt += " Differentiate between similar-looking symbols like x and ×, or + and t. ";
+      systemPrompt += " For fractions, identify the numerator and denominator separated by a horizontal line.";
+    }
+    
     // Construct the user prompt
     let userPrompt = "Solve this math problem: " + problem.problem;
     
     if (problem.type === "image") {
-      userPrompt = "Analyze and solve the math problem in this image: " + problem.problem;
+      userPrompt = "Analyze and solve the math problem in this image: " + problem.problem + " Ensure you identify all symbols and numbers correctly.";
     } else if (problem.type === "voice") {
-      userPrompt = "Analyze the recorded math problem and solve it step by step: " + problem.problem;
+      userPrompt = "Carefully analyze this spoken math problem and solve it step by step: " + problem.problem;
+      userPrompt += " Remember to focus on mathematical terms and properly interpret them.";
     } else if (problem.type === "drawing") {
       userPrompt = "Analyze this hand-drawn math problem and solve it step by step: " + problem.problem;
-      systemPrompt += " Look carefully at the drawing to identify all mathematical symbols and digits correctly.";
+      userPrompt += " Pay special attention to correctly identifying all mathematical symbols, numbers, and operations.";
     } else if (problem.type === "file") {
       userPrompt = `Extract and solve the math problems from this ${problem.fileType} file. `;
       if (problem.fileType === "csv") {
@@ -59,7 +73,7 @@ export const solveMathProblem = async (problem: MathProblem): Promise<MathSoluti
       }
     }
     
-    // Make request to GROQ API
+    // Make request to GROQ API with enhanced parameters for accuracy
     const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -78,8 +92,9 @@ export const solveMathProblem = async (problem: MathProblem): Promise<MathSoluti
             content: userPrompt
           }
         ],
-        temperature: 0.3,
-        max_tokens: 4096
+        temperature: 0.2, // Lower temperature for more deterministic outputs
+        max_tokens: 4096,
+        top_p: 0.95, // Slightly reduced top_p for more focused sampling
       })
     });
     
