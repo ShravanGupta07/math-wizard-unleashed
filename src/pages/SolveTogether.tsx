@@ -48,7 +48,7 @@ const SolveTogetherLanding = () => {
   const [showJoinModal, setShowJoinModal] = useState(false);
 
   return (
-    <div className="container py-8 space-y-8">
+    <div className="container max-w-7xl mx-auto py-8 px-4 space-y-8">
       {/* Hero section */}
       <div className="text-center space-y-4">
         <h1 className="text-4xl font-bold font-display">Solve Together</h1>
@@ -116,7 +116,7 @@ const SolveTogetherLanding = () => {
       <div className="pt-8">
         <h2 className="text-2xl font-semibold font-display text-center mb-6">Powerful Collaboration Features</h2>
         <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-6">
-          <div className="feature-card">
+          <div className="feature-card p-4 rounded-lg border bg-card/50 hover:shadow-md transition-all">
             <div className="flex items-center gap-2 mb-2">
               <Pencil className="h-5 w-5 text-primary" />
               <h3 className="font-semibold">Interactive Whiteboard</h3>
@@ -126,7 +126,7 @@ const SolveTogetherLanding = () => {
             </p>
           </div>
           
-          <div className="feature-card">
+          <div className="feature-card p-4 rounded-lg border bg-card/50 hover:shadow-md transition-all">
             <div className="flex items-center gap-2 mb-2">
               <MessageSquare className="h-5 w-5 text-primary" />
               <h3 className="font-semibold">Real-Time Chat</h3>
@@ -136,7 +136,7 @@ const SolveTogetherLanding = () => {
             </p>
           </div>
           
-          <div className="feature-card">
+          <div className="feature-card p-4 rounded-lg border bg-card/50 hover:shadow-md transition-all">
             <div className="flex items-center gap-2 mb-2">
               <HelpCircle className="h-5 w-5 text-primary" />
               <h3 className="font-semibold">AI Assistance</h3>
@@ -146,7 +146,7 @@ const SolveTogetherLanding = () => {
             </p>
           </div>
           
-          <div className="feature-card">
+          <div className="feature-card p-4 rounded-lg border bg-card/50 hover:shadow-md transition-all">
             <div className="flex items-center gap-2 mb-2">
               <Users className="h-5 w-5 text-primary" />
               <h3 className="font-semibold">Team Solving</h3>
@@ -156,7 +156,7 @@ const SolveTogetherLanding = () => {
             </p>
           </div>
           
-          <div className="feature-card">
+          <div className="feature-card p-4 rounded-lg border bg-card/50 hover:shadow-md transition-all">
             <div className="flex items-center gap-2 mb-2">
               <Award className="h-5 w-5 text-primary" />
               <h3 className="font-semibold">XP & Badges</h3>
@@ -166,7 +166,7 @@ const SolveTogetherLanding = () => {
             </p>
           </div>
           
-          <div className="feature-card">
+          <div className="feature-card p-4 rounded-lg border bg-card/50 hover:shadow-md transition-all">
             <div className="flex items-center gap-2 mb-2">
               <Save className="h-5 w-5 text-primary" />
               <h3 className="font-semibold">Save & Share</h3>
@@ -198,14 +198,14 @@ const SolveTogetherLanding = () => {
 
 const SolveTogetherRoom = () => {
   return (
-    <div className="h-[calc(100vh-10rem)] flex flex-col">
+    <div className="flex flex-col h-[calc(100vh-4rem)] overflow-hidden">
       {/* Top bar with problem title, timer and help button */}
       <ProblemPanel />
       
       <div className="flex flex-1 overflow-hidden">
         {/* Left sidebar with chat and participants */}
         <div className="w-80 border-r border-border h-full hidden md:block">
-          <Tabs defaultValue="chat">
+          <Tabs defaultValue="chat" className="h-full flex flex-col">
             <TabsList className="w-full grid grid-cols-2">
               <TabsTrigger value="chat" className="flex items-center gap-2">
                 <MessageSquare className="h-4 w-4" />
@@ -216,17 +216,17 @@ const SolveTogetherRoom = () => {
                 Participants
               </TabsTrigger>
             </TabsList>
-            <TabsContent value="chat" className="h-[calc(100vh-16rem)] flex flex-col">
+            <TabsContent value="chat" className="flex-1 overflow-hidden flex flex-col">
               <CollaborativeChat />
             </TabsContent>
-            <TabsContent value="participants" className="h-[calc(100vh-16rem)] flex flex-col">
+            <TabsContent value="participants" className="flex-1 overflow-hidden flex flex-col">
               <ParticipantsList />
             </TabsContent>
           </Tabs>
         </div>
         
         {/* Main whiteboard area */}
-        <div className="flex-1 flex flex-col h-full">
+        <div className="flex-1 flex flex-col h-full relative">
           <div className="flex-1 relative">
             <CollaborativeWhiteboard />
           </div>
@@ -235,7 +235,7 @@ const SolveTogetherRoom = () => {
           <ToolsPanel />
         </div>
         
-        {/* Optional right sidebar for leaderboard/game features */}
+        {/* Right sidebar for leaderboard/game features */}
         <div className="w-64 border-l border-border h-full hidden lg:block">
           <LeaderboardPanel />
         </div>
@@ -245,8 +245,6 @@ const SolveTogetherRoom = () => {
 };
 
 const SolveTogether = () => {
-  const [roomCode, setRoomCode] = useState<string | null>(null);
-  
   return (
     <RoomProvider>
       <RoomContext.Consumer>
