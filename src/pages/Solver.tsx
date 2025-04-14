@@ -8,12 +8,13 @@ import { toast } from "@/components/ui/sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { LogIn } from "lucide-react";
 import { Link } from "react-router-dom";
+import { supabase } from "@/integrations/supabase/client";
 
 const Solver = () => {
   const [problem, setProblem] = useState<MathProblem | null>(null);
   const [solution, setSolution] = useState<MathSolution | null>(null);
   const [loading, setLoading] = useState(false);
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user } = useAuth();
 
   const handleSubmit = async (mathProblem: MathProblem) => {
     setLoading(true);
@@ -23,13 +24,19 @@ const Solver = () => {
     try {
       const result = await solveMathProblem(mathProblem);
       
-      // Instead of adding LaTeX delimiters, ensure it has our simplified format
-      if (result && !result.solution.includes("A classic!")) {
-        // Add our friendly intro format
-        result.solution = `A classic! The solution to this problem is quite simple:\n\n${result.solution}`;
+      // Format the solution to be more readable in plain English
+      if (result) {
+        // Make sure it starts with "A classic!" introduction
+        if (!result.solution.includes("A classic!")) {
+          result.solution = `A classic! The solution to this problem is quite simple:\n\n${result.solution}`;
+        }
         
-        // Replace any LaTeX boxed notation with our simplified boxing
-        result.solution = result.solution.replace(/\\boxed\{(.*?)\}/g, "【$1】");
+        // Replace any LaTeX notation with plain text
+        result.solution = result.solution
+          .replace(/\\\$/g, "")
+          .replace(/\$\$(.*?)\$\$/g, "$1")
+          .replace(/\$(.*?)\$/g, "$1")
+          .replace(/\\boxed\{(.*?)\}/g, "【$1】");
         
         // Try to identify the final answer and box it if not already boxed
         if (!result.solution.includes("【")) {
@@ -44,6 +51,26 @@ const Solver = () => {
       }
       
       setSolution(result);
+      
+      // Save to history if user is authenticated
+      if (isAuthenticated && user) {
+        try {
+          const { error } = await supabase.from('math_history').insert({
+            user_id: user.id,
+            problem: mathProblem.problem,
+            problem_type: mathProblem.type,
+            solution: result.solution,
+            explanation: result.explanation || "",
+            steps: result.steps || [],
+          });
+          
+          if (error) {
+            console.error("Error saving to history:", error);
+          }
+        } catch (err) {
+          console.error("Failed to save to history:", err);
+        }
+      }
     } catch (error) {
       console.error("Error solving problem:", error);
       toast.error("Failed to solve the problem. Please try again.");

@@ -1,3 +1,4 @@
+
 import { toast } from "@/components/ui/sonner";
 
 // The API Key, ideally this would be stored in a more secure way like environment variables or server-side
@@ -36,7 +37,8 @@ export const solveMathProblem = async (problem: MathProblem): Promise<MathSoluti
     let systemPrompt = "You are MathWizard, an advanced AI specialized in solving mathematics problems. ";
     
     systemPrompt += "Always provide clear, simple explanations in plain English. Start with 'A classic!' followed by a simple explanation. ";
-    systemPrompt += "Format answers as 'The solution to this problem is quite simple: {solution}' and use 【answer】 to highlight the final result instead of LaTeX boxed notation. ";
+    systemPrompt += "Format answers as 'The solution to this problem is quite simple: {solution}' and use 【answer】 to highlight the final result. ";
+    systemPrompt += "Do NOT use LaTeX notation or dollar sign delimiters. Present math formulas in plain text format. ";
     systemPrompt += "Include step-by-step solutions in numbered list format, with each step clearly explained.";
     
     // Construct the user prompt

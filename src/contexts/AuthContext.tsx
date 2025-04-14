@@ -125,16 +125,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const signInWithGoogle = async () => {
     try {
-      // Using the correct redirect URL for the current origin
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${window.location.origin}/`
+          redirectTo: window.location.origin
         }
       });
       
       if (error) {
-        console.error("OAuth error details:", error);
+        console.error("Google OAuth error details:", error);
+        toast.error(`Failed to sign in with Google: ${error.message}`);
         throw error;
       }
     } catch (error: any) {
