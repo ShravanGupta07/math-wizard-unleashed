@@ -28,7 +28,7 @@ const Solver = () => {
       if (result) {
         // Make sure it starts with "A classic!" introduction
         if (!result.solution.includes("A classic!")) {
-          result.solution = `A classic! The solution to this problem is quite simple:\n\n${result.solution}`;
+          result.solution = `A classic! Here's the solution to your problem:\n\n${result.solution}`;
         }
         
         // Additional cleanup for any remaining LaTeX
@@ -49,6 +49,19 @@ const Solver = () => {
               `= 【${numericMatch[1]}】`
             );
           }
+        }
+        
+        // Ensure steps are also properly formatted
+        if (result.steps && Array.isArray(result.steps)) {
+          result.steps = result.steps.map(step => {
+            return step
+              .replace(/\\\$/g, "")
+              .replace(/\$\$(.*?)\$\$/g, "$1")
+              .replace(/\$(.*?)\$/g, "$1")
+              .replace(/\\boxed\{(.*?)\}/g, "【$1】")
+              .replace(/\\frac\{(.*?)\}\{(.*?)\}/g, "$1/$2")
+              .replace(/\\sqrt\{(.*?)\}/g, "sqrt($1)");
+          });
         }
       }
       
