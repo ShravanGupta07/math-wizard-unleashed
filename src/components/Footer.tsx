@@ -33,17 +33,17 @@ const Footer = () => {
               <ul className="space-y-2 text-sm">
                 <li>
                   <Link to="/app/solver" className="text-muted-foreground hover:text-foreground transition-colors">
-                    Solver!
+                    Solver
                   </Link>
                 </li>
                 <li>
                   <Link to="/app/examples" className="text-muted-foreground hover:text-foreground transition-colors">
-                    Examples!
+                    Examples
                   </Link>
                 </li>
                 <li>
                   <Link to="/app/about" className="text-muted-foreground hover:text-foreground transition-colors">
-                    About!
+                    About
                   </Link>
                 </li>
               </ul>
