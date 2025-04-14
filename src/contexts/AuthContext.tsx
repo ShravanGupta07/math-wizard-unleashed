@@ -27,75 +27,80 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Check for authenticated session
+    // Set up auth state change listener first
+    const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log("Auth event:", event);
+      
+      if (session?.user) {
+        try {
+          // Use setTimeout to prevent potential auth deadlocks
+          setTimeout(async () => {
+            const { data: profileData, error: profileError } = await supabase
+              .from('profiles')
+              .select('*')
+              .eq('id', session.user.id)
+              .maybeSingle();
+              
+            if (profileError) {
+              console.error("Error fetching profile:", profileError);
+            }
+            
+            const enhancedUser: UserWithMeta = {
+              ...session.user,
+              name: profileData?.name || session.user.email?.split('@')[0] || null,
+              photoURL: profileData?.avatar_url || null,
+              isPremium: false
+            };
+            
+            setUser(enhancedUser);
+            setLoading(false);
+          }, 0);
+        } catch (error) {
+          console.error("Error enhancing user:", error);
+          setLoading(false);
+        }
+      } else if (event === 'SIGNED_OUT') {
+        setUser(null);
+        setLoading(false);
+      }
+    });
+
+    // Check existing session
     const checkSession = async () => {
       try {
-        setLoading(true);
         const { data } = await supabase.auth.getSession();
         
         if (data.session?.user) {
-          const { data: profileData, error: profileError } = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('id', data.session.user.id)
-            .single();
+          // Use setTimeout to prevent potential auth deadlocks
+          setTimeout(async () => {
+            const { data: profileData, error: profileError } = await supabase
+              .from('profiles')
+              .select('*')
+              .eq('id', data.session.user.id)
+              .maybeSingle();
+              
+            if (profileError) {
+              console.error("Error fetching profile:", profileError);
+            }
             
-          if (profileError) {
-            console.error("Error fetching profile:", profileError);
-          }
-          
-          const enhancedUser: UserWithMeta = {
-            ...data.session.user,
-            name: profileData?.name || data.session.user.email?.split('@')[0] || null,
-            photoURL: profileData?.avatar_url || null,
-            isPremium: false // Default value, can be updated based on your subscription logic
-          };
-          
-          setUser(enhancedUser);
-        } else {
-          setUser(null);
+            const enhancedUser: UserWithMeta = {
+              ...data.session.user,
+              name: profileData?.name || data.session.user.email?.split('@')[0] || null,
+              photoURL: profileData?.avatar_url || null,
+              isPremium: false
+            };
+            
+            setUser(enhancedUser);
+          }, 0);
         }
       } catch (error) {
         console.error("Error checking session:", error);
-        setUser(null);
       } finally {
         setLoading(false);
       }
     };
 
     checkSession();
-
-    // Set up auth state change listener
-    const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log("Auth event:", event);
-      
-      if (event === 'SIGNED_IN' && session?.user) {
-        try {
-          const { data: profileData, error: profileError } = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('id', session.user.id)
-            .single();
-            
-          if (profileError) {
-            console.error("Error fetching profile:", profileError);
-          }
-          
-          const enhancedUser: UserWithMeta = {
-            ...session.user,
-            name: profileData?.name || session.user.email?.split('@')[0] || null,
-            photoURL: profileData?.avatar_url || null,
-            isPremium: false
-          };
-          
-          setUser(enhancedUser);
-        } catch (error) {
-          console.error("Error fetching user profile:", error);
-        }
-      } else if (event === 'SIGNED_OUT') {
-        setUser(null);
-      }
-    });
 
     // Cleanup function
     return () => {
@@ -115,8 +120,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       toast.success("Signed in successfully!");
     } catch (error: any) {
-      toast.error(`Failed to sign in: ${error.message}`);
       console.error(error);
+      toast.error(`Failed to sign in: ${error.message}`);
       throw error;
     } finally {
       setLoading(false);
@@ -125,33 +130,31 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const signInWithGoogle = async () => {
     try {
-      // Get the current URL's origin for the redirectTo
-      const redirectTo = window.location.origin;
-      console.log("Redirecting to:", redirectTo);
+      // Get the current URL for redirection
+      const origin = window.location.origin;
+      const redirectTo = `${origin}/auth/callback`;
+      
+      console.log("Starting Google login with redirect to:", redirectTo);
       
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: redirectTo, // Use the current origin as the redirect URL
+          redirectTo: origin, // Use the app origin as the redirect URL
           queryParams: {
-            access_type: 'offline', // Request a refresh token
-            prompt: 'consent' // Force consent screen to ensure refresh token
+            access_type: 'offline',
+            prompt: 'consent'
           }
         }
       });
       
       if (error) {
         console.error("Google OAuth error details:", error);
-        if (error.message.includes("provider is not enabled")) {
-          toast.error("Google login is not enabled. Please check your Supabase configuration.");
-        } else {
-          toast.error(`Failed to sign in with Google: ${error.message}`);
-        }
+        toast.error(`Failed to sign in with Google: ${error.message}`);
         throw error;
       }
     } catch (error: any) {
-      toast.error(`Failed to sign in with Google: ${error.message}`);
       console.error("Detailed error:", error);
+      toast.error(`Failed to sign in with Google: ${error.message}`);
       throw error;
     }
   };
@@ -173,8 +176,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       toast.success("Account created successfully! Please check your email for verification.");
     } catch (error: any) {
-      toast.error(`Failed to create account: ${error.message}`);
       console.error(error);
+      toast.error(`Failed to create account: ${error.message}`);
       throw error;
     } finally {
       setLoading(false);
@@ -190,8 +193,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       toast.success("Signed out successfully!");
     } catch (error: any) {
-      toast.error(`Failed to sign out: ${error.message}`);
       console.error(error);
+      toast.error(`Failed to sign out: ${error.message}`);
       throw error;
     } finally {
       setLoading(false);

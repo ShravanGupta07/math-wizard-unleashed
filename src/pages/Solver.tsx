@@ -9,6 +9,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { LogIn } from "lucide-react";
 import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { Button } from "@/components/ui/button";
 
 const Solver = () => {
   const [problem, setProblem] = useState<MathProblem | null>(null);
@@ -120,12 +121,16 @@ const Solver = () => {
         </p>
         
         {!isAuthenticated && (
-          <div className="mt-4 p-3 bg-primary/5 rounded-lg inline-flex items-center">
-            <LogIn className="h-4 w-4 mr-2 text-primary" />
-            <span className="text-sm">
-              <Link to="/profile" className="font-medium text-primary hover:underline">Sign in</Link>
-              {" "}to save your solutions and access history
-            </span>
+          <div className="mt-4 p-3 bg-primary/5 rounded-lg flex flex-col sm:flex-row items-center justify-center gap-3">
+            <div className="flex items-center">
+              <LogIn className="h-4 w-4 mr-2 text-primary" />
+              <span className="text-sm">
+                Sign in to save your solutions and access history
+              </span>
+            </div>
+            <Button asChild size="sm" variant="outline">
+              <Link to="/profile">Sign In</Link>
+            </Button>
           </div>
         )}
       </div>
