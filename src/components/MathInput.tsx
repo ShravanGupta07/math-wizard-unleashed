@@ -8,6 +8,8 @@ import { toast } from "@/components/ui/sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { Camera, FileText, Mic, PenTool, Upload } from "lucide-react";
 import { MathProblem } from "@/lib/groq-api";
+import VoiceRecorder from "./VoiceRecorder";
+import DrawingCanvas from "./DrawingCanvas";
 
 interface MathInputProps {
   onSubmit: (problem: MathProblem) => void;
@@ -15,7 +17,6 @@ interface MathInputProps {
 }
 
 const MathInput: React.FC<MathInputProps> = ({ onSubmit, isLoading }) => {
-  // Remove the local useToast variable
   const [inputMethod, setInputMethod] = useState<"text" | "image" | "voice" | "drawing" | "file">("text");
   const [textInput, setTextInput] = useState("");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -112,6 +113,38 @@ const MathInput: React.FC<MathInputProps> = ({ onSubmit, isLoading }) => {
       };
       reader.readAsDataURL(file);
     });
+  };
+
+  const handleVoiceRecordingComplete = async (audioBlob: Blob) => {
+    try {
+      const reader = new FileReader();
+      reader.readAsDataURL(audioBlob);
+      reader.onloadend = () => {
+        const base64data = reader.result as string;
+        
+        onSubmit({
+          problem: "Voice recorded math problem",
+          type: "voice",
+          content: base64data,
+        });
+      };
+    } catch (error) {
+      console.error("Error processing voice recording:", error);
+      toast.error("Failed to process your recording. Please try again.");
+    }
+  };
+
+  const handleDrawingSave = (imageData: string) => {
+    try {
+      onSubmit({
+        problem: "Hand-drawn math problem",
+        type: "drawing",
+        content: imageData,
+      });
+    } catch (error) {
+      console.error("Error processing drawing:", error);
+      toast.error("Failed to process your drawing. Please try again.");
+    }
   };
 
   const handlePremiumFeatureClick = () => {
@@ -273,43 +306,47 @@ const MathInput: React.FC<MathInputProps> = ({ onSubmit, isLoading }) => {
           </Card>
         </TabsContent>
 
-        {/* Voice Input - Premium Feature Placeholder */}
+        {/* Voice Input */}
         <TabsContent value="voice" className="space-y-4">
           <Card>
             <CardContent className="p-6">
-              <div className="text-center py-8">
-                <Mic className="mx-auto h-12 w-12 text-primary/50 mb-4" />
-                <h3 className="text-lg font-semibold mb-2">Voice Input</h3>
-                <p className="text-muted-foreground mb-4">
-                  {isAuthenticated 
-                    ? "This feature is coming soon! You'll be able to speak your math problems." 
-                    : "Log in to use voice input for your math problems."}
-                </p>
-                {!isAuthenticated && <Button onClick={handlePremiumFeatureClick}>Log in to Access</Button>}
-              </div>
+              {!isAuthenticated ? (
+                <div className="text-center py-8">
+                  <Mic className="mx-auto h-12 w-12 text-primary/50 mb-4" />
+                  <h3 className="text-lg font-semibold mb-2">Voice Input</h3>
+                  <p className="text-muted-foreground mb-4">
+                    Log in to use voice input for your math problems.
+                  </p>
+                  <Button onClick={handlePremiumFeatureClick}>Log in to Access</Button>
+                </div>
+              ) : (
+                <VoiceRecorder onRecordingComplete={handleVoiceRecordingComplete} />
+              )}
             </CardContent>
           </Card>
         </TabsContent>
 
-        {/* Drawing Input - Premium Feature Placeholder */}
+        {/* Drawing Input */}
         <TabsContent value="drawing" className="space-y-4">
           <Card>
             <CardContent className="p-6">
-              <div className="text-center py-8">
-                <PenTool className="mx-auto h-12 w-12 text-primary/50 mb-4" />
-                <h3 className="text-lg font-semibold mb-2">Draw Your Problem</h3>
-                <p className="text-muted-foreground mb-4">
-                  {isAuthenticated 
-                    ? "This feature is coming soon! You'll be able to draw math problems directly." 
-                    : "Log in to use the drawing feature for your math problems."}
-                </p>
-                {!isAuthenticated && <Button onClick={handlePremiumFeatureClick}>Log in to Access</Button>}
-              </div>
+              {!isAuthenticated ? (
+                <div className="text-center py-8">
+                  <PenTool className="mx-auto h-12 w-12 text-primary/50 mb-4" />
+                  <h3 className="text-lg font-semibold mb-2">Draw Your Problem</h3>
+                  <p className="text-muted-foreground mb-4">
+                    Log in to use the drawing feature for your math problems.
+                  </p>
+                  <Button onClick={handlePremiumFeatureClick}>Log in to Access</Button>
+                </div>
+              ) : (
+                <DrawingCanvas onSave={handleDrawingSave} />
+              )}
             </CardContent>
           </Card>
         </TabsContent>
 
-        {/* File Input - Premium Feature */}
+        {/* File Input */}
         <TabsContent value="file" className="space-y-4">
           <Card>
             <CardContent className="p-6">

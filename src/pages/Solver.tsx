@@ -70,6 +70,22 @@ const Solver = () => {
       // Save to history if user is authenticated
       if (isAuthenticated && user) {
         try {
+          // Let's prepare the content for storage
+          let contentToStore = null;
+          
+          // For image, drawing, or voice inputs, store a reference
+          if (mathProblem.type === "image" || mathProblem.type === "drawing" || mathProblem.type === "voice") {
+            if (typeof mathProblem.content === "string") {
+              // Store a thumbnail or the first portion if it's a base64 string
+              const contentString = mathProblem.content as string;
+              if (contentString.length > 1000) {
+                contentToStore = contentString.substring(0, 1000) + "..."; // Store a truncated version
+              } else {
+                contentToStore = contentString;
+              }
+            }
+          }
+          
           const { error } = await supabase.from('math_history').insert({
             user_id: user.id,
             problem: mathProblem.problem,
@@ -77,6 +93,7 @@ const Solver = () => {
             solution: result.solution,
             explanation: result.explanation || "",
             steps: result.steps || [],
+            input_content: contentToStore, // Store reference to the input
           });
           
           if (error) {

@@ -1,3 +1,4 @@
+
 import { toast } from "@/components/ui/sonner";
 
 // The API Key, ideally this would be stored in a more secure way like environment variables or server-side
@@ -24,7 +25,7 @@ export const solveMathProblem = async (problem: MathProblem): Promise<MathSoluti
     let content = problem.content;
     
     // Handle file content if it exists
-    if (problem.type === "file" && content) {
+    if ((problem.type === "file" || problem.type === "image" || problem.type === "voice" || problem.type === "drawing") && content) {
       if (typeof content !== "string") {
         // Convert ArrayBuffer to base64 for sending
         const buffer = new Uint8Array(content as ArrayBuffer);
@@ -46,6 +47,11 @@ export const solveMathProblem = async (problem: MathProblem): Promise<MathSoluti
     
     if (problem.type === "image") {
       userPrompt = "Analyze and solve the math problem in this image: " + problem.problem;
+    } else if (problem.type === "voice") {
+      userPrompt = "Analyze the recorded math problem and solve it step by step: " + problem.problem;
+    } else if (problem.type === "drawing") {
+      userPrompt = "Analyze this hand-drawn math problem and solve it step by step: " + problem.problem;
+      systemPrompt += " Look carefully at the drawing to identify all mathematical symbols and digits correctly.";
     } else if (problem.type === "file") {
       userPrompt = `Extract and solve the math problems from this ${problem.fileType} file. `;
       if (problem.fileType === "csv") {
