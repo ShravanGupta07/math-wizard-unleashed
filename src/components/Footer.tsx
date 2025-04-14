@@ -1,6 +1,6 @@
 
 import { Link } from "react-router-dom";
-import { Calculator, GitHub, Twitter } from "lucide-react";
+import { Calculator, Github, Twitter } from "lucide-react";
 
 const Footer = () => {
   return (
