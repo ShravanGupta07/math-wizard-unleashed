@@ -1,4 +1,3 @@
-
 import { Link } from "react-router-dom";
 import { Calculator, Github, Twitter } from "lucide-react";
 
@@ -21,7 +20,7 @@ const Footer = () => {
                 <span className="sr-only">Twitter</span>
               </a>
               <a href="#" className="text-muted-foreground hover:text-foreground transition-colors">
-                <GitHub className="h-5 w-5" />
+                <Github className="h-5 w-5" />
                 <span className="sr-only">GitHub</span>
               </a>
             </div>

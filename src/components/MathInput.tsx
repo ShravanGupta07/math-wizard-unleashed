@@ -15,13 +15,13 @@ interface MathInputProps {
 }
 
 const MathInput: React.FC<MathInputProps> = ({ onSubmit, isLoading }) => {
+  // Remove the local useToast variable
   const [inputMethod, setInputMethod] = useState<"text" | "image" | "voice" | "drawing" | "file">("text");
   const [textInput, setTextInput] = useState("");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [filePreviewUrl, setFilePreviewUrl] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { user, isAuthenticated } = useAuth();
-  const toast = useToast();
 
   const handleTextSubmit = () => {
     if (!textInput.trim()) {
