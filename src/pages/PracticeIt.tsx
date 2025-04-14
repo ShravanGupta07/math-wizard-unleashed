@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import { 
   Clock, 
@@ -15,7 +14,7 @@ import {
   TimerReset,
   Plus,
   BookOpen,
-  Info
+  Info as InfoIcon
 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -200,7 +199,7 @@ const TopicSelection = ({
         <div className="text-sm text-muted-foreground mt-2">
           {!isAuthenticated && (
             <div className="text-amber-600 dark:text-amber-400 flex items-center mb-2">
-              <Info className="h-4 w-4 mr-1" />
+              <InfoIcon className="h-4 w-4 mr-1" />
               Sign in to save your practice history and track progress
             </div>
           )}
@@ -814,8 +813,8 @@ const Loader = (props: React.ComponentProps<typeof Clock>) => {
 };
 
 // Info component
-const Info = (props: React.ComponentProps<typeof Info>) => {
-  return <Info {...props} />;
+const Info = (props: React.ComponentProps<typeof InfoIcon>) => {
+  return <InfoIcon {...props} />;
 };
 
 const PracticeIt = () => {
