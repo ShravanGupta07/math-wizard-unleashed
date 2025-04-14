@@ -14,6 +14,7 @@ import About from "@/pages/About";
 import Profile from "@/pages/Profile";
 import Settings from "@/pages/Settings";
 import NotFound from "@/pages/NotFound";
+import PracticeIt from "@/pages/PracticeIt";
 
 const queryClient = new QueryClient();
 
@@ -29,6 +30,7 @@ const App = () => (
               <Route path="/" element={<Layout />}>
                 <Route index element={<Solver />} />
                 <Route path="solver" element={<Solver />} />
+                <Route path="practice" element={<PracticeIt />} />
                 <Route path="history" element={<History />} />
                 <Route path="examples" element={<Examples />} />
                 <Route path="about" element={<About />} />

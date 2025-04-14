@@ -112,6 +112,7 @@ export default {
 			fontFamily: {
 				sans: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
 				display: ['Poppins', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+				poppins: ['Poppins', 'ui-sans-serif', 'system-ui', 'sans-serif'],
 			},
 			keyframes: {
 				'accordion-down': {
