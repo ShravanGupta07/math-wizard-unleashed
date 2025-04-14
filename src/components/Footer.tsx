@@ -1,3 +1,4 @@
+
 import { Link } from "react-router-dom";
 import { Calculator, Github, Twitter } from "lucide-react";
 
@@ -31,17 +32,17 @@ const Footer = () => {
               <h3 className="text-sm font-semibold mb-3">Product</h3>
               <ul className="space-y-2 text-sm">
                 <li>
-                  <Link to="/" className="text-muted-foreground hover:text-foreground transition-colors">
+                  <Link to="/app/solver" className="text-muted-foreground hover:text-foreground transition-colors">
                     Solver
                   </Link>
                 </li>
                 <li>
-                  <Link to="/examples" className="text-muted-foreground hover:text-foreground transition-colors">
+                  <Link to="/app/examples" className="text-muted-foreground hover:text-foreground transition-colors">
                     Examples
                   </Link>
                 </li>
                 <li>
-                  <Link to="/about" className="text-muted-foreground hover:text-foreground transition-colors">
+                  <Link to="/app/about" className="text-muted-foreground hover:text-foreground transition-colors">
                     About
                   </Link>
                 </li>

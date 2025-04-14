@@ -14,6 +14,7 @@ import About from "@/pages/About";
 import Profile from "@/pages/Profile";
 import Settings from "@/pages/Settings";
 import NotFound from "@/pages/NotFound";
+import LandingPage from "@/pages/LandingPage";
 
 const queryClient = new QueryClient();
 
@@ -26,8 +27,10 @@ const App = () => (
           <Sonner />
           <BrowserRouter>
             <Routes>
-              <Route path="/" element={<Layout />}>
+              <Route path="/" element={<LandingPage />} />
+              <Route path="/app" element={<Layout />}>
                 <Route index element={<Solver />} />
+                <Route path="solver" element={<Solver />} />
                 <Route path="history" element={<History />} />
                 <Route path="examples" element={<Examples />} />
                 <Route path="about" element={<About />} />
@@ -35,6 +38,7 @@ const App = () => (
                 <Route path="settings" element={<Settings />} />
                 <Route path="*" element={<NotFound />} />
               </Route>
+              <Route path="*" element={<NotFound />} />
             </Routes>
           </BrowserRouter>
         </HistoryProvider>

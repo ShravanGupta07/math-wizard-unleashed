@@ -185,7 +185,7 @@ const Solver = () => {
                 </span>
               </div>
               <Button asChild size="sm" variant="outline" className="bg-gradient-to-r from-indigo-500 to-cyan-400 text-white border-0 hover:from-indigo-600 hover:to-cyan-500 hover:text-white transition-all duration-300">
-                <Link to="/profile">Sign In</Link>
+                <Link to="/app/profile">Sign In</Link>
               </Button>
             </div>
           )}

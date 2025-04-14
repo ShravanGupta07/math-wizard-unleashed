@@ -1,5 +1,5 @@
 
-// This serves as a redirect to the main Solver page
+// This serves as a redirect to the landing page
 import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 
