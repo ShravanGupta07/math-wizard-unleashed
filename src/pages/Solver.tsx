@@ -6,24 +6,36 @@ import { MathProblem, MathSolution, solveMathProblem } from "@/lib/groq-api";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "@/components/ui/sonner";
 import { useAuth } from "@/contexts/AuthContext";
-import { LogIn } from "lucide-react";
+import { LogIn, Lightbulb, ScrollText } from "lucide-react";
 import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 
 const Solver = () => {
   const [problem, setProblem] = useState<MathProblem | null>(null);
   const [solution, setSolution] = useState<MathSolution | null>(null);
   const [loading, setLoading] = useState(false);
+  const [requestVisualization, setRequestVisualization] = useState(true);
+  const [requestHints, setRequestHints] = useState(true);
   const { isAuthenticated, user } = useAuth();
 
   const handleSubmit = async (mathProblem: MathProblem) => {
     setLoading(true);
-    setProblem(mathProblem);
+    
+    // Add visualization and hints preferences to the problem
+    const enhancedProblem = {
+      ...mathProblem,
+      requestVisualization,
+      requestHints
+    };
+    
+    setProblem(enhancedProblem);
     setSolution(null);
     
     try {
-      const result = await solveMathProblem(mathProblem);
+      const result = await solveMathProblem(enhancedProblem);
       
       // Additional formatting to ensure no LaTeX remains and everything is in plain English
       if (result) {
@@ -76,11 +88,14 @@ const Solver = () => {
           
           const { error } = await supabase.from('math_history').insert({
             user_id: user.id,
-            problem: mathProblem.problem,
-            problem_type: mathProblem.type,
+            problem: enhancedProblem.problem,
+            problem_type: enhancedProblem.type,
             solution: result.solution,
             explanation: result.explanation || "",
-            steps: result.steps || []
+            steps: result.steps || [],
+            topic: result.topic || "General Mathematics",
+            hints: result.hints || [],
+            latex: result.latex || ""
           });
           
           if (error) {
@@ -121,13 +136,63 @@ const Solver = () => {
         )}
       </div>
       
-      <MathInput onSubmit={handleSubmit} isLoading={loading} />
+      <div className="flex flex-col space-y-5">
+        <div className="flex flex-wrap items-center justify-end gap-4 px-1">
+          <div className="flex items-center space-x-2">
+            <Switch 
+              id="visualization" 
+              checked={requestVisualization}
+              onCheckedChange={setRequestVisualization}
+            />
+            <Label htmlFor="visualization" className="text-sm cursor-pointer">
+              Generate visualizations
+            </Label>
+          </div>
+          
+          <div className="flex items-center space-x-2">
+            <Switch 
+              id="hints" 
+              checked={requestHints}
+              onCheckedChange={setRequestHints}
+            />
+            <Label htmlFor="hints" className="text-sm cursor-pointer">
+              Include hints
+            </Label>
+          </div>
+        </div>
+        
+        <MathInput onSubmit={handleSubmit} isLoading={loading} />
+      </div>
       
       {(problem || loading) && (
         <>
           <Separator />
           <MathOutput problem={problem} solution={solution} loading={loading} />
         </>
+      )}
+      
+      {!problem && !loading && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-8">
+          <div className="p-4 border rounded-lg bg-muted/10">
+            <div className="flex items-start mb-2">
+              <Lightbulb className="h-5 w-5 text-amber-500 mr-2 mt-0.5" />
+              <h3 className="font-medium">Solving with Steps</h3>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Each solution includes a detailed step-by-step explanation, perfect for learning how to solve similar problems.
+            </p>
+          </div>
+          
+          <div className="p-4 border rounded-lg bg-muted/10">
+            <div className="flex items-start mb-2">
+              <ScrollText className="h-5 w-5 text-emerald-500 mr-2 mt-0.5" />
+              <h3 className="font-medium">Topic Detection</h3>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Our system automatically detects the math topic of your problem to provide more accurate, subject-specific solutions.
+            </p>
+          </div>
+        </div>
       )}
     </div>
   );

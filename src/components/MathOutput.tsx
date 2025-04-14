@@ -7,21 +7,62 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useHistory } from "@/contexts/HistoryContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { MathProblem, MathSolution } from "@/lib/groq-api";
-import { Clock, Copy, Download, ThumbsUp } from "lucide-react";
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ScatterChart, Scatter, AreaChart, Area } from "recharts";
+import { Clock, Copy, Download, ThumbsUp, Info, BookOpen, ChevronRight, Lightbulb } from "lucide-react";
 import { toast } from "@/components/ui/sonner";
 import { supabase } from "@/integrations/supabase/client";
+import Katex from "katex";
+import "katex/dist/katex.min.css";
 
-// Improved rendering component for math solutions
+// Enhanced rendering component for math solutions with LaTeX support
 const FormattedMath = ({ text, className = "" }: { text: string, className?: string }) => {
-  // Process text to highlight boxed answers with a special style
-  const processedText = text.replace(/【(.*?)】/g, '<span class="bg-primary/20 px-2 py-1 rounded text-primary font-semibold">$1</span>');
+  // Process text to highlight boxed answers with a special style and render LaTeX
+  const processText = () => {
+    if (!text) return { __html: "" };
+
+    // First replace boxed answers with a special style
+    let processedText = text.replace(/【(.*?)】/g, '<span class="bg-primary/20 px-2 py-1 rounded text-primary font-semibold">$1</span>');
+    
+    // Find all potential LaTeX expressions (both inline and display)
+    const latexRegex = /\$(.*?)\$|\$\$(.*?)\$\$/g;
+    let match;
+    let lastIndex = 0;
+    let result = "";
+    
+    while ((match = latexRegex.exec(processedText)) !== null) {
+      // Add text before the LaTeX
+      result += processedText.substring(lastIndex, match.index);
+      
+      // Determine if it's display or inline LaTeX
+      const isDisplay = match[0].startsWith("$$");
+      const latexContent = isDisplay ? match[2] : match[1];
+      
+      try {
+        // Render LaTeX to HTML
+        const html = Katex.renderToString(latexContent, {
+          throwOnError: false,
+          displayMode: isDisplay,
+        });
+        result += html;
+      } catch (e) {
+        // Fallback to original text if rendering fails
+        result += match[0];
+      }
+      
+      lastIndex = match.index + match[0].length;
+    }
+    
+    // Add any remaining text
+    result += processedText.substring(lastIndex);
+    
+    return { __html: result };
+  };
   
   return (
     <div className={`math-render ${className}`}>
       <div 
         className="whitespace-pre-line" 
-        dangerouslySetInnerHTML={{ __html: processedText }} 
+        dangerouslySetInnerHTML={processText()}
       />
     </div>
   );
@@ -39,6 +80,22 @@ const MathOutput: React.FC<MathOutputProps> = ({ problem, solution, loading }) =
   const [activeTab, setActiveTab] = useState("solution");
   const [graphData, setGraphData] = useState<any[] | null>(null);
   const [solutionSaved, setSolutionSaved] = useState(false);
+  const [visibleHints, setVisibleHints] = useState(0);
+  const [chartType, setChartType] = useState<'line' | 'scatter' | 'area'>('line');
+  
+  // Determine the best chart type based on the data and topic
+  useEffect(() => {
+    if (solution && solution.topic) {
+      const topic = solution.topic.toLowerCase();
+      if (topic.includes('statistic') || topic.includes('data')) {
+        setChartType('scatter');
+      } else if (topic.includes('calculus') && topic.includes('area')) {
+        setChartType('area');
+      } else {
+        setChartType('line');
+      }
+    }
+  }, [solution]);
   
   // Fix the infinite loop by adding solutionSaved to prevent multiple saves
   useEffect(() => {
@@ -51,16 +108,35 @@ const MathOutput: React.FC<MathOutputProps> = ({ problem, solution, loading }) =
         saveSolutionToSupabase(problem, solution);
       }
       
-      if (solution.visualization) {
+      // Use the plot data from the solution if available
+      if (solution.plotData) {
+        setGraphData(solution.plotData);
+      } else if (solution.visualization) {
         setGraphData(solution.visualization);
       } else if (problem.problem.toLowerCase().includes("graph") || 
                 problem.problem.toLowerCase().includes("plot") ||
                 problem.problem.toLowerCase().includes("equation")) {
-        const demoData = Array.from({ length: 20 }, (_, i) => ({
-          x: i - 10,
-          y: Math.pow(i - 10, 2) / 10,
-        }));
-        setGraphData(demoData);
+        // Create appropriate sample data based on the detected topic
+        if (solution.topic?.toLowerCase().includes('quadratic')) {
+          const demoData = Array.from({ length: 21 }, (_, i) => ({
+            x: i - 10,
+            y: Math.pow(i - 10, 2) / 10,
+          }));
+          setGraphData(demoData);
+        } else if (solution.topic?.toLowerCase().includes('trigonometry')) {
+          const demoData = Array.from({ length: 41 }, (_, i) => ({
+            x: i * 0.2 - 4,
+            y: Math.sin(i * 0.2 - 4),
+          }));
+          setGraphData(demoData);
+        } else {
+          // Default linear data
+          const demoData = Array.from({ length: 21 }, (_, i) => ({
+            x: i - 10,
+            y: (i - 10) * 0.5,
+          }));
+          setGraphData(demoData);
+        }
       } else {
         setGraphData(null);
       }
@@ -80,7 +156,9 @@ const MathOutput: React.FC<MathOutputProps> = ({ problem, solution, loading }) =
           explanation: solution.explanation,
           latex: solution.latex,
           steps: solution.steps || [],
-          visualization: solution.visualization || null
+          topic: solution.topic || 'General Mathematics',
+          hints: solution.hints || [],
+          visualization: solution.visualization || solution.plotData || null
         });
         
       if (error) {
@@ -95,6 +173,7 @@ const MathOutput: React.FC<MathOutputProps> = ({ problem, solution, loading }) =
   useEffect(() => {
     if (problem) {
       setSolutionSaved(false);
+      setVisibleHints(0);
     }
   }, [problem]);
   
@@ -140,6 +219,49 @@ const MathOutput: React.FC<MathOutputProps> = ({ problem, solution, loading }) =
     URL.revokeObjectURL(url);
     
     toast.success("Solution downloaded");
+  };
+  
+  const showNextHint = () => {
+    if (solution?.hints && visibleHints < solution.hints.length) {
+      setVisibleHints(prev => prev + 1);
+    }
+  };
+  
+  // Render chart based on data type and topic
+  const renderChart = () => {
+    if (!graphData || graphData.length === 0) return null;
+    
+    if (chartType === 'scatter') {
+      return (
+        <ScatterChart width={600} height={300} margin={{ top: 20, right: 20, bottom: 20, left: 20 }}>
+          <CartesianGrid />
+          <XAxis type="number" dataKey="x" name="X" />
+          <YAxis type="number" dataKey="y" name="Y" />
+          <Tooltip cursor={{ strokeDasharray: '3 3' }} />
+          <Scatter name="Values" data={graphData} fill="hsl(var(--primary))" />
+        </ScatterChart>
+      );
+    } else if (chartType === 'area') {
+      return (
+        <AreaChart width={600} height={300} data={graphData} margin={{ top: 20, right: 20, bottom: 20, left: 20 }}>
+          <CartesianGrid strokeDasharray="3 3" />
+          <XAxis dataKey="x" />
+          <YAxis />
+          <Tooltip />
+          <Area type="monotone" dataKey="y" stroke="hsl(var(--primary))" fill="hsl(var(--primary)/0.2)" />
+        </AreaChart>
+      );
+    } else {
+      return (
+        <LineChart width={600} height={300} data={graphData} margin={{ top: 20, right: 20, bottom: 20, left: 20 }}>
+          <CartesianGrid strokeDasharray="3 3" />
+          <XAxis dataKey="x" />
+          <YAxis />
+          <Tooltip />
+          <Line type="monotone" dataKey="y" stroke="hsl(var(--primary))" activeDot={{ r: 8 }} />
+        </LineChart>
+      );
+    }
   };
   
   if (!problem && !loading) {
@@ -189,7 +311,14 @@ const MathOutput: React.FC<MathOutputProps> = ({ problem, solution, loading }) =
     <Card className="w-full max-w-3xl mx-auto">
       <CardHeader>
         <CardTitle className="flex justify-between items-start">
-          <span>Solution</span>
+          <div className="flex flex-col">
+            <span>Solution</span>
+            {solution.topic && (
+              <span className="text-xs font-normal text-muted-foreground mt-1">
+                Topic: {solution.topic}
+              </span>
+            )}
+          </div>
           <span className="text-xs bg-primary/10 text-primary px-2 py-1 rounded-full flex items-center">
             <Clock className="h-3 w-3 mr-1" />
             Just now
@@ -201,9 +330,12 @@ const MathOutput: React.FC<MathOutputProps> = ({ problem, solution, loading }) =
       </CardHeader>
       <CardContent className="p-0">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="w-full grid grid-cols-2 rounded-none border-b">
+          <TabsList className="w-full grid grid-cols-3 rounded-none border-b">
             <TabsTrigger value="solution">Solution</TabsTrigger>
             <TabsTrigger value="explanation">Step-by-Step</TabsTrigger>
+            <TabsTrigger value="hints" disabled={!solution.hints || solution.hints.length === 0}>
+              Hints
+            </TabsTrigger>
           </TabsList>
           
           <TabsContent value="solution" className="p-6">
@@ -213,22 +345,39 @@ const MathOutput: React.FC<MathOutputProps> = ({ problem, solution, loading }) =
               </div>
               
               {graphData && (
-                <div className="graph-container mt-6 h-[300px]">
+                <div className="graph-container mt-6">
                   <h3 className="text-sm font-medium mb-2">Graph Visualization</h3>
-                  <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={graphData}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="x" />
-                      <YAxis />
-                      <Tooltip />
-                      <Line 
-                        type="monotone" 
-                        dataKey="y" 
-                        stroke="hsl(var(--primary))" 
-                        activeDot={{ r: 8 }} 
-                      />
-                    </LineChart>
-                  </ResponsiveContainer>
+                  <div className="h-[300px] w-full overflow-auto">
+                    <ResponsiveContainer width="100%" height="100%" minWidth={600}>
+                      {renderChart()}
+                    </ResponsiveContainer>
+                  </div>
+                  <div className="flex justify-end mt-2 space-x-2">
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => setChartType('line')}
+                      className={chartType === 'line' ? 'bg-muted' : ''}
+                    >
+                      Line
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => setChartType('scatter')}
+                      className={chartType === 'scatter' ? 'bg-muted' : ''}
+                    >
+                      Scatter
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => setChartType('area')}
+                      className={chartType === 'area' ? 'bg-muted' : ''}
+                    >
+                      Area
+                    </Button>
+                  </div>
                 </div>
               )}
             </div>
@@ -240,10 +389,73 @@ const MathOutput: React.FC<MathOutputProps> = ({ problem, solution, loading }) =
                 <ol className="list-decimal pl-5 space-y-3">
                   {formatSolutionSteps(solution).map((step, index) => (
                     <li key={index} className="text-base">
-                      {step}
+                      <FormattedMath text={step} />
                     </li>
                   ))}
                 </ol>
+              )}
+            </div>
+          </TabsContent>
+          
+          <TabsContent value="hints" className="p-6">
+            <div className="prose prose-sm max-w-none">
+              {solution.hints && solution.hints.length > 0 ? (
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2 text-amber-600 mb-4">
+                    <Lightbulb className="h-5 w-5" />
+                    <p className="font-medium">Need some guidance without the full answer?</p>
+                  </div>
+                  
+                  <div className="space-y-3">
+                    {solution.hints.slice(0, visibleHints).map((hint, index) => (
+                      <div 
+                        key={index} 
+                        className="p-3 bg-amber-50 border border-amber-200 rounded-md"
+                      >
+                        <p className="font-medium text-amber-800 mb-1">Hint {index + 1}:</p>
+                        <FormattedMath text={hint} />
+                      </div>
+                    ))}
+                  </div>
+                  
+                  {visibleHints < solution.hints.length && (
+                    <Button 
+                      onClick={showNextHint} 
+                      className="mt-4 w-full"
+                      variant="outline"
+                    >
+                      <Lightbulb className="h-4 w-4 mr-2" />
+                      Show Next Hint ({visibleHints + 1} of {solution.hints.length})
+                    </Button>
+                  )}
+                  
+                  {visibleHints === solution.hints.length && (
+                    <div className="p-3 bg-muted rounded-md mt-4 text-center">
+                      <p className="text-sm text-muted-foreground">
+                        You've seen all available hints. Check the solution for the complete answer.
+                      </p>
+                      <Button 
+                        variant="link" 
+                        onClick={() => setActiveTab('solution')}
+                        className="mt-2"
+                      >
+                        View full solution <ChevronRight className="h-3 w-3 ml-1" />
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="text-center py-8">
+                  <Info className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
+                  <h3 className="text-lg font-medium mb-2">No Hints Available</h3>
+                  <p className="text-muted-foreground mb-4">
+                    Hints aren't available for this problem. Check the step-by-step solution instead.
+                  </p>
+                  <Button variant="outline" onClick={() => setActiveTab('explanation')}>
+                    <BookOpen className="h-4 w-4 mr-2" />
+                    View Step-by-Step
+                  </Button>
+                </div>
               )}
             </div>
           </TabsContent>
