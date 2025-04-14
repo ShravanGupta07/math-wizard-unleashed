@@ -1,4 +1,6 @@
 
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Poppins:wght@400;500;600;700&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -14,7 +16,7 @@
     --popover: 0 0% 100%;
     --popover-foreground: 255 5% 15%;
 
-    --primary: 260 75% 75%;
+    --primary: 240 75% 65%;
     --primary-foreground: 260 5% 98%;
 
     --secondary: 260 30% 96%;
@@ -31,9 +33,9 @@
 
     --border: 260 15% 90%;
     --input: 260 15% 90%;
-    --ring: 260 75% 75%;
+    --ring: 240 75% 65%;
 
-    --radius: 0.5rem;
+    --radius: 0.75rem;
 
     --sidebar-background: 260 25% 98%;
     --sidebar-foreground: 260 5% 26%;
@@ -55,7 +57,7 @@
     --popover: 260 15% 12%;
     --popover-foreground: 260 5% 98%;
 
-    --primary: 260 75% 75%;
+    --primary: 240 75% 65%;
     --primary-foreground: 260 5% 98%;
 
     --secondary: 260 15% 18%;
@@ -72,7 +74,7 @@
 
     --border: 260 15% 18%;
     --input: 260 15% 18%;
-    --ring: 260 75% 75%;
+    --ring: 240 75% 65%;
 
     --sidebar-background: 260 15% 12%;
     --sidebar-foreground: 260 5% 96%;
@@ -91,13 +93,18 @@
   }
 
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground font-sans;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  }
+  
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-display;
   }
 }
 
 /* Math editor styles */
 .math-editor {
-  @apply min-h-[120px] p-4 rounded-lg border border-border bg-card shadow-sm focus:outline-none focus:ring-2 focus:ring-primary focus:ring-opacity-50 transition-all w-full;
+  @apply min-h-[120px] p-4 rounded-xl border border-border bg-card shadow-sm focus:outline-none focus:ring-2 focus:ring-primary focus:ring-opacity-50 transition-all w-full;
 }
 
 .math-editor:empty:before {
@@ -121,7 +128,7 @@
 
 /* History item styling */
 .history-item {
-  @apply p-4 border border-border rounded-lg transition-all hover:shadow-md hover:border-primary/30;
+  @apply p-4 border border-border rounded-xl transition-all hover:shadow-md hover:border-primary/30;
 }
 
 /* Tooltip styles */
@@ -131,7 +138,7 @@
 
 /* Graph container */
 .graph-container {
-  @apply w-full h-[300px] md:h-[400px] border border-border rounded-lg p-4 bg-card;
+  @apply w-full h-[300px] md:h-[400px] border border-border rounded-xl p-4 bg-card;
 }
 
 /* Animation classes */
@@ -142,4 +149,28 @@
 @keyframes fadeIn {
   from { opacity: 0; }
   to { opacity: 1; }
+}
+
+/* Button gradients */
+.btn-gradient {
+  @apply bg-gradient-to-r from-indigo-600 to-cyan-500 hover:from-indigo-700 hover:to-cyan-600 text-white transition-all duration-300;
+}
+
+/* Card styles */
+.card-gradient {
+  @apply bg-gradient-to-br from-card to-secondary/80 backdrop-blur-sm;
+}
+
+.feature-card {
+  @apply border border-border/50 rounded-xl p-5 hover:shadow-md transition-all;
+}
+
+/* Input styles */
+.fancy-input {
+  @apply rounded-xl border border-input bg-background px-4 py-3 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-opacity-50 transition-all;
+}
+
+/* Mic animation */
+.mic-active {
+  @apply animate-glow;
 }
