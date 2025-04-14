@@ -1,6 +1,6 @@
 
 import { Link, useLocation } from "react-router-dom";
-import { Calculator, History, BarChart3, Info, User, Settings, BookOpen } from "lucide-react";
+import { Calculator, History, BarChart3, Info, User, Settings, BookOpen, Users } from "lucide-react";
 import { ModeToggle } from "./ModeToggle";
 import { Button } from "./ui/button";
 import { useAuth } from "@/contexts/AuthContext";
@@ -59,6 +59,12 @@ const Header = () => {
                 icon={BookOpen} 
                 label="Practice It" 
                 isActive={location.pathname === "/practice"}
+              />
+              <NavItem 
+                to="/solve-together" 
+                icon={Users} 
+                label="Solve Together" 
+                isActive={location.pathname === "/solve-together"}
               />
               <NavItem 
                 to="/history" 

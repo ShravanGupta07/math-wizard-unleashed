@@ -15,6 +15,7 @@ import Profile from "@/pages/Profile";
 import Settings from "@/pages/Settings";
 import NotFound from "@/pages/NotFound";
 import PracticeIt from "@/pages/PracticeIt";
+import SolveTogether from "@/pages/SolveTogether";
 
 const queryClient = new QueryClient();
 
@@ -33,6 +34,7 @@ const App = () => (
                 <Route path="practice" element={<PracticeIt />} />
                 <Route path="history" element={<History />} />
                 <Route path="examples" element={<Examples />} />
+                <Route path="solve-together" element={<SolveTogether />} />
                 <Route path="about" element={<About />} />
                 <Route path="profile" element={<Profile />} />
                 <Route path="settings" element={<Settings />} />
