@@ -13,7 +13,7 @@ const Footer = () => {
               <span className="font-bold tracking-tight">MathWizard</span>
             </div>
             <p className="mt-2 text-sm text-muted-foreground">
-              AI-powered math solver for all your mathematical needs.
+              AI-powered math solver for all your mathematicals needs.
             </p>
             <div className="mt-4 flex space-x-4">
               <a href="#" className="text-muted-foreground hover:text-foreground transition-colors">
