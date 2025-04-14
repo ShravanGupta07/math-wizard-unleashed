@@ -5,10 +5,12 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useHistory } from "@/contexts/HistoryContext";
+import { useAuth } from "@/contexts/AuthContext";
 import { MathProblem, MathSolution } from "@/lib/groq-api";
 import { Clock, Copy, Download, ThumbsUp } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { toast } from "@/components/ui/sonner";
+import { supabase } from "@/integrations/supabase/client";
 
 // Improved LaTeX rendering component
 const MathJax = ({ latex, className = "" }: { latex: string, className?: string }) => {
@@ -33,6 +35,7 @@ interface MathOutputProps {
 
 const MathOutput: React.FC<MathOutputProps> = ({ problem, solution, loading }) => {
   const { addToHistory } = useHistory();
+  const { isAuthenticated, user } = useAuth();
   const [activeTab, setActiveTab] = useState("solution");
   const [graphData, setGraphData] = useState<any[] | null>(null);
   const [solutionSaved, setSolutionSaved] = useState(false);
@@ -42,6 +45,11 @@ const MathOutput: React.FC<MathOutputProps> = ({ problem, solution, loading }) =
     if (solution && !loading && problem && !solutionSaved) {
       addToHistory(problem, solution);
       setSolutionSaved(true);
+      
+      // Save solution to Supabase if user is authenticated
+      if (isAuthenticated && user) {
+        saveSolutionToSupabase(problem, solution);
+      }
       
       if (solution.visualization) {
         setGraphData(solution.visualization);
@@ -57,7 +65,31 @@ const MathOutput: React.FC<MathOutputProps> = ({ problem, solution, loading }) =
         setGraphData(null);
       }
     }
-  }, [solution, loading, problem, addToHistory, solutionSaved]);
+  }, [solution, loading, problem, addToHistory, solutionSaved, isAuthenticated, user]);
+  
+  // Save solution to Supabase
+  const saveSolutionToSupabase = async (problem: MathProblem, solution: MathSolution) => {
+    try {
+      const { error } = await supabase
+        .from('math_history')
+        .insert({
+          user_id: user?.id,
+          problem: problem.problem,
+          problem_type: problem.type,
+          solution: solution.solution,
+          explanation: solution.explanation,
+          latex: solution.latex,
+          steps: solution.steps || [],
+          visualization: solution.visualization || null
+        });
+        
+      if (error) {
+        console.error("Error saving solution to Supabase:", error);
+      }
+    } catch (err) {
+      console.error("Failed to save solution to Supabase:", err);
+    }
+  };
   
   // Reset solutionSaved when problem changes
   useEffect(() => {
@@ -85,15 +117,26 @@ const MathOutput: React.FC<MathOutputProps> = ({ problem, solution, loading }) =
   const formatSolution = (solution: MathSolution): string => {
     if (!solution.solution) return "";
     
-    // Check if the solution already has a "classic" or similar intro
-    if (solution.solution.includes("classic") || 
-        solution.solution.includes("Here's") || 
-        solution.solution.startsWith("A ")) {
+    // Check if the solution already has the desired format
+    if (solution.solution.includes("A classic!") || 
+        solution.solution.includes("$$") ||
+        solution.solution.includes("\\boxed")) {
       return solution.solution;
     }
     
-    // Add a friendly intro if not present
-    return `A classic! The solution to this problem is quite simple:\n\n${solution.solution}`;
+    // Add the desired format if not present
+    let formattedSolution = `A classic! The solution to this problem is quite simple: $$${solution.solution}$$`;
+    
+    // If there's a specific numerical answer, try to box it
+    const numericAnswer = solution.solution.match(/[=]\s*([\d\.\-]+)/);
+    if (numericAnswer && numericAnswer[1]) {
+      formattedSolution = formattedSolution.replace(
+        numericAnswer[0], 
+        `= \\boxed{${numericAnswer[1]}}`
+      );
+    }
+    
+    return formattedSolution;
   };
 
   const handleCopy = () => {

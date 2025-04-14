@@ -9,7 +9,72 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
-      [_ in never]: never
+      math_history: {
+        Row: {
+          created_at: string
+          explanation: string | null
+          id: string
+          latex: string | null
+          problem: string
+          problem_type: string | null
+          solution: string
+          steps: Json | null
+          user_id: string
+          visualization: Json | null
+        }
+        Insert: {
+          created_at?: string
+          explanation?: string | null
+          id?: string
+          latex?: string | null
+          problem: string
+          problem_type?: string | null
+          solution: string
+          steps?: Json | null
+          user_id: string
+          visualization?: Json | null
+        }
+        Update: {
+          created_at?: string
+          explanation?: string | null
+          id?: string
+          latex?: string | null
+          problem?: string
+          problem_type?: string | null
+          solution?: string
+          steps?: Json | null
+          user_id?: string
+          visualization?: Json | null
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          avatar_url: string | null
+          created_at: string
+          email: string | null
+          id: string
+          name: string | null
+          updated_at: string
+        }
+        Insert: {
+          avatar_url?: string | null
+          created_at?: string
+          email?: string | null
+          id: string
+          name?: string | null
+          updated_at?: string
+        }
+        Update: {
+          avatar_url?: string | null
+          created_at?: string
+          email?: string | null
+          id?: string
+          name?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

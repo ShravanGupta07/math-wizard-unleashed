@@ -1,17 +1,17 @@
 
 import React, { createContext, useContext, useState, useEffect } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { User } from "@supabase/supabase-js";
 import { toast } from "@/components/ui/sonner";
 
-interface User {
-  id: string;
-  email: string;
+interface UserWithMeta extends User {
   name: string | null;
   photoURL: string | null;
   isPremium: boolean;
 }
 
 interface AuthContextType {
-  user: User | null;
+  user: UserWithMeta | null;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<void>;
   signInWithGoogle: () => Promise<void>;
@@ -22,51 +22,100 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Mock implementation for demo purposes
-// In a real app, this would connect to an actual authentication service
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<UserWithMeta | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Check for saved user in localStorage (simulating persistent authentication)
-    const savedUser = localStorage.getItem("mathWizardUser");
-    if (savedUser) {
+    // Check for authenticated session
+    const checkSession = async () => {
       try {
-        setUser(JSON.parse(savedUser));
+        setLoading(true);
+        const { data } = await supabase.auth.getSession();
+        
+        if (data.session?.user) {
+          const { data: profileData, error: profileError } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', data.session.user.id)
+            .single();
+            
+          if (profileError) {
+            console.error("Error fetching profile:", profileError);
+          }
+          
+          const enhancedUser: UserWithMeta = {
+            ...data.session.user,
+            name: profileData?.name || data.session.user.email?.split('@')[0] || null,
+            photoURL: profileData?.avatar_url || null,
+            isPremium: false // Default value, can be updated based on your subscription logic
+          };
+          
+          setUser(enhancedUser);
+        } else {
+          setUser(null);
+        }
       } catch (error) {
-        console.error("Failed to parse saved user:", error);
-        localStorage.removeItem("mathWizardUser");
+        console.error("Error checking session:", error);
+        setUser(null);
+      } finally {
+        setLoading(false);
       }
-    }
-    setLoading(false);
+    };
+
+    checkSession();
+
+    // Set up auth state change listener
+    const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log("Auth event:", event);
+      
+      if (event === 'SIGNED_IN' && session?.user) {
+        try {
+          const { data: profileData, error: profileError } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', session.user.id)
+            .single();
+            
+          if (profileError) {
+            console.error("Error fetching profile:", profileError);
+          }
+          
+          const enhancedUser: UserWithMeta = {
+            ...session.user,
+            name: profileData?.name || session.user.email?.split('@')[0] || null,
+            photoURL: profileData?.avatar_url || null,
+            isPremium: false
+          };
+          
+          setUser(enhancedUser);
+        } catch (error) {
+          console.error("Error fetching user profile:", error);
+        }
+      } else if (event === 'SIGNED_OUT') {
+        setUser(null);
+      }
+    });
+
+    // Cleanup function
+    return () => {
+      authListener.subscription.unsubscribe();
+    };
   }, []);
 
   const signIn = async (email: string, password: string) => {
     setLoading(true);
     try {
-      // Simulate API call delay
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // Mock validation
-      if (!email.includes("@") || password.length < 6) {
-        throw new Error("Invalid email or password");
-      }
-      
-      // Create mock user
-      const newUser = {
-        id: `user_${Date.now()}`,
+      const { data, error } = await supabase.auth.signInWithPassword({
         email,
-        name: email.split("@")[0],
-        photoURL: null,
-        isPremium: false
-      };
+        password,
+      });
       
-      setUser(newUser);
-      localStorage.setItem("mathWizardUser", JSON.stringify(newUser));
+      if (error) throw error;
+      
       toast.success("Signed in successfully!");
-    } catch (error) {
-      toast.error("Failed to sign in. Please check your credentials.");
+    } catch (error: any) {
+      toast.error(`Failed to sign in: ${error.message}`);
       console.error(error);
       throw error;
     } finally {
@@ -75,57 +124,40 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const signInWithGoogle = async () => {
-    setLoading(true);
     try {
-      // Simulate API call delay
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: `${window.location.origin}/`,
+        }
+      });
       
-      // Create mock Google user
-      const newUser = {
-        id: `google_user_${Date.now()}`,
-        email: "user@example.com",
-        name: "Google User",
-        photoURL: "https://lh3.googleusercontent.com/a/default-user",
-        isPremium: true
-      };
-      
-      setUser(newUser);
-      localStorage.setItem("mathWizardUser", JSON.stringify(newUser));
-      toast.success("Signed in with Google successfully!");
-    } catch (error) {
-      toast.error("Failed to sign in with Google.");
+      if (error) throw error;
+    } catch (error: any) {
+      toast.error(`Failed to sign in with Google: ${error.message}`);
       console.error(error);
       throw error;
-    } finally {
-      setLoading(false);
     }
   };
 
   const signUp = async (email: string, password: string, name: string) => {
     setLoading(true);
     try {
-      // Simulate API call delay
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // Mock validation
-      if (!email.includes("@") || password.length < 6) {
-        throw new Error("Invalid email or password");
-      }
-      
-      // Create mock user
-      const newUser = {
-        id: `user_${Date.now()}`,
+      const { data, error } = await supabase.auth.signUp({
         email,
-        name,
-        photoURL: null,
-        isPremium: false
-      };
+        password,
+        options: {
+          data: {
+            full_name: name,
+          },
+        },
+      });
       
-      setUser(newUser);
-      localStorage.setItem("mathWizardUser", JSON.stringify(newUser));
-      toast.success("Account created successfully!");
-    } catch (error) {
-      toast.error("Failed to create account. Please try again.");
+      if (error) throw error;
+      
+      toast.success("Account created successfully! Please check your email for verification.");
+    } catch (error: any) {
+      toast.error(`Failed to create account: ${error.message}`);
       console.error(error);
       throw error;
     } finally {
@@ -136,14 +168,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const signOut = async () => {
     setLoading(true);
     try {
-      // Simulate API call delay
-      await new Promise(resolve => setTimeout(resolve, 200));
+      const { error } = await supabase.auth.signOut();
       
-      setUser(null);
-      localStorage.removeItem("mathWizardUser");
+      if (error) throw error;
+      
       toast.success("Signed out successfully!");
-    } catch (error) {
-      toast.error("Failed to sign out.");
+    } catch (error: any) {
+      toast.error(`Failed to sign out: ${error.message}`);
       console.error(error);
       throw error;
     } finally {
