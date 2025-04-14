@@ -10,10 +10,17 @@ import { Clock, Copy, Download, ThumbsUp } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { toast } from "@/components/ui/sonner";
 
+// Improved LaTeX rendering component
 const MathJax = ({ latex, className = "" }: { latex: string, className?: string }) => {
+  // Process LaTeX to properly display it in the UI
+  const processedLatex = latex
+    .replace(/\$\$(.*?)\$\$/g, "$1") // Remove $$ delimiters
+    .replace(/\$(.*?)\$/g, "$1")     // Remove $ delimiters
+    .replace(/\\boxed\{(.*?)\}/g, "【$1】"); // Replace \boxed with visible brackets
+
   return (
     <div className={`katex-render bg-muted/30 p-4 rounded-md ${className}`}>
-      <pre className="font-mono text-sm overflow-x-auto whitespace-pre-wrap">{latex}</pre>
+      <pre className="font-mono text-sm overflow-x-auto whitespace-pre-wrap">{processedLatex}</pre>
     </div>
   );
 };
@@ -59,17 +66,34 @@ const MathOutput: React.FC<MathOutputProps> = ({ problem, solution, loading }) =
     }
   }, [problem]);
   
+  // Improved formatting for solution steps
   const formatSolutionSteps = (solution: MathSolution) => {
     if (solution.steps && solution.steps.length > 0) {
       return solution.steps;
     }
     
+    // Split by common step delimiters (numbered steps or blank lines)
     const explanationSteps = solution.explanation
-      .split(/\n\n/)
-      .filter(step => step.trim().length > 0)
+      .split(/(\d+\.\s+|\n\n)/)
+      .filter(step => step.trim().length > 0 && !step.match(/^\d+\.\s*$/)) // Remove empty steps and standalone numbers
       .map(step => step.trim());
     
     return explanationSteps.length > 0 ? explanationSteps : [solution.explanation];
+  };
+
+  // Format the solution to include a friendly intro and boxed result
+  const formatSolution = (solution: MathSolution): string => {
+    if (!solution.solution) return "";
+    
+    // Check if the solution already has a "classic" or similar intro
+    if (solution.solution.includes("classic") || 
+        solution.solution.includes("Here's") || 
+        solution.solution.startsWith("A ")) {
+      return solution.solution;
+    }
+    
+    // Add a friendly intro if not present
+    return `A classic! The solution to this problem is quite simple:\n\n${solution.solution}`;
   };
 
   const handleCopy = () => {
@@ -181,7 +205,7 @@ const MathOutput: React.FC<MathOutputProps> = ({ problem, solution, loading }) =
           
           <TabsContent value="solution" className="p-6">
             <div className="prose prose-sm max-w-none space-y-4">
-              <p className="text-lg font-medium mb-4">{solution?.solution}</p>
+              <p className="text-lg font-medium mb-4 whitespace-pre-line">{formatSolution(solution)}</p>
               
               {solution?.latex && (
                 <div className="mt-4">
@@ -191,7 +215,7 @@ const MathOutput: React.FC<MathOutputProps> = ({ problem, solution, loading }) =
               )}
               
               {graphData && (
-                <div className="graph-container mt-6">
+                <div className="graph-container mt-6 h-[300px]">
                   <h3 className="text-sm font-medium mb-2">Graph Visualization</h3>
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={graphData}>
