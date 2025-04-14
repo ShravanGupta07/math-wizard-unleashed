@@ -5,7 +5,7 @@ import { ModeToggle } from "./ModeToggle";
 import { Button } from "./ui/button";
 import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
-import { useMobile } from "@/hooks/use-mobile";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 const NavItem = ({ 
   to, 
@@ -35,7 +35,7 @@ const NavItem = ({
 const Header = () => {
   const location = useLocation();
   const { isAuthenticated } = useAuth();
-  const isMobile = useMobile();
+  const isMobile = useIsMobile();
 
   return (
     <header className="sticky top-0 z-10 bg-background/80 backdrop-blur-md border-b border-border">
