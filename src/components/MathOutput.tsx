@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,14 +9,10 @@ import { Clock, Copy, Download, ThumbsUp } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { toast } from "@/components/ui/sonner";
 
-// We'll use a library for LaTeX rendering
-// Note: In a real implementation you'd need to install react-katex and katex packages
-// and add their CSS. This is a mockup for demonstration purposes.
-const MathJax = ({ latex }: { latex: string }) => {
-  // This is a placeholder - in a real app, you'd use the actual MathJax or KaTeX component
+const MathJax = ({ latex, className = "" }: { latex: string, className?: string }) => {
   return (
-    <div className="katex-render">
-      <pre className="font-mono text-sm overflow-x-auto">{latex}</pre>
+    <div className={`katex-render bg-muted/30 p-4 rounded-md ${className}`}>
+      <pre className="font-mono text-sm overflow-x-auto whitespace-pre-wrap">{latex}</pre>
     </div>
   );
 };
@@ -32,21 +27,17 @@ const MathOutput: React.FC<MathOutputProps> = ({ problem, solution, loading }) =
   const { addToHistory } = useHistory();
   const [activeTab, setActiveTab] = useState("solution");
   
-  // Demo graph data (would normally come from the solution)
   const [graphData, setGraphData] = useState<any[] | null>(null);
   
   useEffect(() => {
     if (solution && !loading && problem) {
-      // Save to history when we get a new solution
       addToHistory(problem, solution);
       
-      // Generate some demo graph data if needed
       if (solution.visualization) {
         setGraphData(solution.visualization);
       } else if (problem.problem.toLowerCase().includes("graph") || 
                 problem.problem.toLowerCase().includes("plot") ||
                 problem.problem.toLowerCase().includes("equation")) {
-        // Generate sample data for demonstration
         const demoData = Array.from({ length: 20 }, (_, i) => ({
           x: i - 10,
           y: Math.pow(i - 10, 2) / 10,
@@ -58,6 +49,19 @@ const MathOutput: React.FC<MathOutputProps> = ({ problem, solution, loading }) =
     }
   }, [solution, loading, problem, addToHistory]);
   
+  const formatSolutionSteps = (solution: MathSolution) => {
+    if (solution.steps && solution.steps.length > 0) {
+      return solution.steps;
+    }
+    
+    const explanationSteps = solution.explanation
+      .split(/\n\n/)
+      .filter(step => step.trim().length > 0)
+      .map(step => step.trim());
+    
+    return explanationSteps.length > 0 ? explanationSteps : [solution.explanation];
+  };
+
   const handleCopy = () => {
     if (!solution) return;
     
@@ -166,8 +170,15 @@ const MathOutput: React.FC<MathOutputProps> = ({ problem, solution, loading }) =
           </TabsList>
           
           <TabsContent value="solution" className="p-6">
-            <div className="prose prose-sm max-w-none">
-              <p className="text-lg font-medium mb-4">{solution.solution}</p>
+            <div className="prose prose-sm max-w-none space-y-4">
+              <p className="text-lg font-medium mb-4">{solution?.solution}</p>
+              
+              {solution?.latex && (
+                <div className="mt-4">
+                  <h4 className="text-sm font-semibold mb-2">Final Equation</h4>
+                  <MathJax latex={solution.latex} className="mb-4" />
+                </div>
+              )}
               
               {graphData && (
                 <div className="graph-container mt-6">
@@ -193,22 +204,25 @@ const MathOutput: React.FC<MathOutputProps> = ({ problem, solution, loading }) =
           
           <TabsContent value="explanation" className="p-6">
             <div className="prose prose-sm max-w-none">
-              {solution.steps && solution.steps.length > 0 ? (
-                <ol className="list-decimal pl-5 space-y-2">
-                  {solution.steps.map((step, index) => (
-                    <li key={index}>{step}</li>
+              {solution && (
+                <ol className="list-decimal pl-5 space-y-3">
+                  {formatSolutionSteps(solution).map((step, index) => (
+                    <li key={index} className="text-base">
+                      {step}
+                    </li>
                   ))}
                 </ol>
-              ) : (
-                <p>{solution.explanation}</p>
               )}
             </div>
           </TabsContent>
           
           <TabsContent value="latex" className="p-6">
-            <div className="prose prose-sm max-w-none">
-              {solution.latex ? (
-                <MathJax latex={solution.latex} />
+            <div className="prose prose-sm max-w-none space-y-4">
+              {solution?.latex ? (
+                <>
+                  <h4 className="text-sm font-semibold">Complete LaTeX Representation</h4>
+                  <MathJax latex={solution.latex} />
+                </>
               ) : (
                 <p className="text-muted-foreground">
                   No LaTeX representation available for this solution.
