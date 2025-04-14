@@ -12,17 +12,17 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import { toast } from "@/components/ui/sonner";
 import { supabase } from "@/integrations/supabase/client";
 
-// Improved LaTeX rendering component
-const MathJax = ({ latex, className = "" }: { latex: string, className?: string }) => {
-  // Process LaTeX to properly display it in the UI
-  const processedLatex = latex
-    .replace(/\$\$(.*?)\$\$/g, "$1") // Remove $$ delimiters
-    .replace(/\$(.*?)\$/g, "$1")     // Remove $ delimiters
-    .replace(/\\boxed\{(.*?)\}/g, "【$1】"); // Replace \boxed with visible brackets
-
+// Improved rendering component for math solutions
+const FormattedMath = ({ text, className = "" }: { text: string, className?: string }) => {
+  // Process text to highlight boxed answers with a special style
+  const processedText = text.replace(/【(.*?)】/g, '<span class="bg-primary/20 px-2 py-1 rounded text-primary font-semibold">$1</span>');
+  
   return (
-    <div className={`katex-render bg-muted/30 p-4 rounded-md ${className}`}>
-      <pre className="font-mono text-sm overflow-x-auto whitespace-pre-wrap">{processedLatex}</pre>
+    <div className={`math-render ${className}`}>
+      <div 
+        className="whitespace-pre-line" 
+        dangerouslySetInnerHTML={{ __html: processedText }} 
+      />
     </div>
   );
 };
@@ -98,55 +98,25 @@ const MathOutput: React.FC<MathOutputProps> = ({ problem, solution, loading }) =
     }
   }, [problem]);
   
-  // Improved formatting for solution steps
+  // Format solution steps
   const formatSolutionSteps = (solution: MathSolution) => {
     if (solution.steps && solution.steps.length > 0) {
       return solution.steps;
     }
     
-    // Split by common step delimiters (numbered steps or blank lines)
+    // Split by common step delimiters
     const explanationSteps = solution.explanation
       .split(/(\d+\.\s+|\n\n)/)
-      .filter(step => step.trim().length > 0 && !step.match(/^\d+\.\s*$/)) // Remove empty steps and standalone numbers
+      .filter(step => step.trim().length > 0 && !step.match(/^\d+\.\s*$/)) 
       .map(step => step.trim());
     
     return explanationSteps.length > 0 ? explanationSteps : [solution.explanation];
   };
 
-  // Format the solution to include a friendly intro and boxed result
-  const formatSolution = (solution: MathSolution): string => {
-    if (!solution.solution) return "";
-    
-    // Check if the solution already has the desired format
-    if (solution.solution.includes("A classic!") || 
-        solution.solution.includes("$$") ||
-        solution.solution.includes("\\boxed")) {
-      return solution.solution;
-    }
-    
-    // Add the desired format if not present
-    let formattedSolution = `A classic! The solution to this problem is quite simple: $$${solution.solution}$$`;
-    
-    // If there's a specific numerical answer, try to box it
-    const numericAnswer = solution.solution.match(/[=]\s*([\d\.\-]+)/);
-    if (numericAnswer && numericAnswer[1]) {
-      formattedSolution = formattedSolution.replace(
-        numericAnswer[0], 
-        `= \\boxed{${numericAnswer[1]}}`
-      );
-    }
-    
-    return formattedSolution;
-  };
-
   const handleCopy = () => {
     if (!solution) return;
     
-    const textToCopy = activeTab === "solution" 
-      ? solution.solution
-      : activeTab === "explanation" 
-        ? solution.explanation
-        : solution.latex || "";
+    const textToCopy = solution.solution;
         
     navigator.clipboard.writeText(textToCopy)
       .then(() => toast.success("Copied to clipboard"))
@@ -156,17 +126,8 @@ const MathOutput: React.FC<MathOutputProps> = ({ problem, solution, loading }) =
   const handleDownload = () => {
     if (!solution) return;
     
-    let content = "";
-    let filename = "math_solution.txt";
-    
-    if (activeTab === "solution") {
-      content = `Problem: ${problem?.problem}\n\nSolution: ${solution.solution}`;
-    } else if (activeTab === "explanation") {
-      content = `Problem: ${problem?.problem}\n\nExplanation: ${solution.explanation}`;
-    } else if (activeTab === "latex" && solution.latex) {
-      content = solution.latex;
-      filename = "math_solution.tex";
-    }
+    const content = `Problem: ${problem?.problem}\n\nSolution: ${solution.solution}`;
+    const filename = "math_solution.txt";
     
     const blob = new Blob([content], { type: "text/plain" });
     const url = URL.createObjectURL(blob);
@@ -229,7 +190,7 @@ const MathOutput: React.FC<MathOutputProps> = ({ problem, solution, loading }) =
       <CardHeader>
         <CardTitle className="flex justify-between items-start">
           <span>Solution</span>
-          <span className="text-xs bg-primary/10 text-primary-foreground px-2 py-1 rounded-full flex items-center">
+          <span className="text-xs bg-primary/10 text-primary px-2 py-1 rounded-full flex items-center">
             <Clock className="h-3 w-3 mr-1" />
             Just now
           </span>
@@ -240,22 +201,16 @@ const MathOutput: React.FC<MathOutputProps> = ({ problem, solution, loading }) =
       </CardHeader>
       <CardContent className="p-0">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="w-full grid grid-cols-3 rounded-none border-b">
+          <TabsList className="w-full grid grid-cols-2 rounded-none border-b">
             <TabsTrigger value="solution">Solution</TabsTrigger>
             <TabsTrigger value="explanation">Step-by-Step</TabsTrigger>
-            <TabsTrigger value="latex">LaTeX</TabsTrigger>
           </TabsList>
           
           <TabsContent value="solution" className="p-6">
             <div className="prose prose-sm max-w-none space-y-4">
-              <p className="text-lg font-medium mb-4 whitespace-pre-line">{formatSolution(solution)}</p>
-              
-              {solution?.latex && (
-                <div className="mt-4">
-                  <h4 className="text-sm font-semibold mb-2">Final Equation</h4>
-                  <MathJax latex={solution.latex} className="mb-4" />
-                </div>
-              )}
+              <div className="text-lg font-medium mb-4">
+                <FormattedMath text={solution.solution} />
+              </div>
               
               {graphData && (
                 <div className="graph-container mt-6 h-[300px]">
@@ -289,21 +244,6 @@ const MathOutput: React.FC<MathOutputProps> = ({ problem, solution, loading }) =
                     </li>
                   ))}
                 </ol>
-              )}
-            </div>
-          </TabsContent>
-          
-          <TabsContent value="latex" className="p-6">
-            <div className="prose prose-sm max-w-none space-y-4">
-              {solution?.latex ? (
-                <>
-                  <h4 className="text-sm font-semibold">Complete LaTeX Representation</h4>
-                  <MathJax latex={solution.latex} />
-                </>
-              ) : (
-                <p className="text-muted-foreground">
-                  No LaTeX representation available for this solution.
-                </p>
               )}
             </div>
           </TabsContent>

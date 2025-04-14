@@ -6,7 +6,6 @@ import { MathProblem, MathSolution, solveMathProblem } from "@/lib/groq-api";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "@/components/ui/sonner";
 import { useAuth } from "@/contexts/AuthContext";
-import { Button } from "@/components/ui/button";
 import { LogIn } from "lucide-react";
 import { Link } from "react-router-dom";
 
@@ -24,18 +23,23 @@ const Solver = () => {
     try {
       const result = await solveMathProblem(mathProblem);
       
-      // Format solution to have boxed answers and LaTeX if it doesn't already
-      if (result && !result.solution.includes("$$")) {
-        // Add LaTeX delimiters if not present
-        result.solution = `A classic! The solution to this problem is quite simple:\n\n$$${result.solution}$$`;
+      // Instead of adding LaTeX delimiters, ensure it has our simplified format
+      if (result && !result.solution.includes("A classic!")) {
+        // Add our friendly intro format
+        result.solution = `A classic! The solution to this problem is quite simple:\n\n${result.solution}`;
         
-        // Try to identify the final answer and box it
-        const numericMatch = result.solution.match(/=\s*([\d\.\-]+)/);
-        if (numericMatch && numericMatch[1]) {
-          result.solution = result.solution.replace(
-            numericMatch[0],
-            `= \\boxed{${numericMatch[1]}}`
-          );
+        // Replace any LaTeX boxed notation with our simplified boxing
+        result.solution = result.solution.replace(/\\boxed\{(.*?)\}/g, "【$1】");
+        
+        // Try to identify the final answer and box it if not already boxed
+        if (!result.solution.includes("【")) {
+          const numericMatch = result.solution.match(/=\s*([\d\.\-]+)/);
+          if (numericMatch && numericMatch[1]) {
+            result.solution = result.solution.replace(
+              numericMatch[0],
+              `= 【${numericMatch[1]}】`
+            );
+          }
         }
       }
       

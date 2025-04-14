@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { useAuth } from "./AuthContext";
 import { MathProblem, MathSolution } from "@/lib/groq-api";
@@ -50,14 +51,14 @@ export const HistoryProvider: React.FC<{ children: React.ReactNode }> = ({ child
               timestamp: new Date(item.created_at).getTime(),
               problem: {
                 problem: item.problem,
-                type: item.problem_type || 'text'
+                type: (item.problem_type || 'text') as "text" | "image" | "voice" | "drawing" | "file"
               },
               solution: {
                 solution: item.solution,
                 explanation: item.explanation || '',
-                steps: item.steps || [],
+                steps: item.steps ? (Array.isArray(item.steps) ? item.steps as string[] : []) : [],
                 latex: item.latex || '',
-                visualization: item.visualization
+                visualization: item.visualization || undefined
               }
             }));
             

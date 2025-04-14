@@ -1,4 +1,3 @@
-
 import { toast } from "@/components/ui/sonner";
 
 // The API Key, ideally this would be stored in a more secure way like environment variables or server-side
@@ -36,11 +35,9 @@ export const solveMathProblem = async (problem: MathProblem): Promise<MathSoluti
     // Construct the system prompt based on the type of problem
     let systemPrompt = "You are MathWizard, an advanced AI specialized in solving mathematics problems. ";
     
-    if (problem.requestVisualization) {
-      systemPrompt += "Include visualization data whenever applicable. Format any visualization data as valid JSON that can be parsed by JavaScript. ";
-    }
-    
-    systemPrompt += "Always provide step-by-step solutions, explanations in clear language, and LaTeX formatted equations when appropriate.";
+    systemPrompt += "Always provide clear, simple explanations in plain English. Start with 'A classic!' followed by a simple explanation. ";
+    systemPrompt += "Format answers as 'The solution to this problem is quite simple: {solution}' and use 【answer】 to highlight the final result instead of LaTeX boxed notation. ";
+    systemPrompt += "Include step-by-step solutions in numbered list format, with each step clearly explained.";
     
     // Construct the user prompt
     let userPrompt = "Solve this math problem: " + problem.problem;
@@ -86,12 +83,10 @@ export const solveMathProblem = async (problem: MathProblem): Promise<MathSoluti
     const data = await response.json();
     const aiResponse = data.choices[0].message.content;
     
-    // Parse the AI response to extract solution components
-    // This is a simplified parsing and would be more sophisticated in production
+    // Format the response for simpler display
     const solution: MathSolution = {
-      solution: extractSolution(aiResponse),
+      solution: formatSolution(aiResponse),
       explanation: extractExplanation(aiResponse),
-      latex: extractLatex(aiResponse),
       steps: extractSteps(aiResponse),
       visualization: extractVisualization(aiResponse)
     };
@@ -104,37 +99,41 @@ export const solveMathProblem = async (problem: MathProblem): Promise<MathSoluti
   }
 };
 
-// Helper functions to extract components from the AI response
-function extractSolution(text: string): string {
-  // Simple extraction - in a real app this would be more sophisticated
-  if (text.includes("Solution:")) {
-    const solutionMatch = text.match(/Solution:(.*?)(?=\n\n|$)/s);
-    return solutionMatch ? solutionMatch[1].trim() : text;
+function formatSolution(text: string): string {
+  // If solution already has our desired format, return it as is
+  if (text.includes("A classic!")) {
+    return text;
   }
-  return text;
+  
+  // Add our desired format
+  let formattedSolution = "A classic! The solution to this problem is quite simple: ";
+  
+  // Extract just the numerical answer if possible
+  const numericMatch = text.match(/(?:=|is|equals)\s*([\d\.\-]+)/i);
+  if (numericMatch && numericMatch[1]) {
+    formattedSolution += `${numericMatch[1]} is our answer.`;
+  } else {
+    // Otherwise use the whole text
+    formattedSolution += text;
+  }
+  
+  // Replace any LaTeX boxed notation with our simplified boxing
+  return formattedSolution.replace(/\\boxed\{(.*?)\}/g, "【$1】");
 }
 
+// Helper functions to extract components from the AI response
 function extractExplanation(text: string): string {
   if (text.includes("Explanation:")) {
     const explanationMatch = text.match(/Explanation:(.*?)(?=\n\n|$)/s);
     return explanationMatch ? explanationMatch[1].trim() : "";
   }
+  
+  // If no explicit explanation section, use the whole text
   return text;
 }
 
-function extractLatex(text: string): string | undefined {
-  // Look for LaTeX content between $$ or $ markers
-  const latexRegex = /\$\$(.*?)\$\$|\$(.*?)\$/gs;
-  const matches = [...text.matchAll(latexRegex)];
-  
-  if (matches.length > 0) {
-    return matches.map(match => match[1] || match[2]).join("\n");
-  }
-  
-  return undefined;
-}
-
 function extractSteps(text: string): string[] | undefined {
+  // Look for steps in various formats
   if (text.includes("Steps:")) {
     const stepsSection = text.match(/Steps:(.*?)(?=\n\n|$)/s);
     if (stepsSection) {
@@ -145,13 +144,14 @@ function extractSteps(text: string): string[] | undefined {
     }
   }
   
-  // Alternative: look for numbered steps
+  // Look for numbered steps
   const stepLines = text.match(/\d+\.\s+(.*?)(?=\n\d+\.|$)/gs);
   if (stepLines && stepLines.length > 0) {
     return stepLines.map(line => line.trim());
   }
   
-  return undefined;
+  // Try to split by new lines if no other pattern matches
+  return text.split('\n').filter(line => line.trim().length > 0);
 }
 
 function extractVisualization(text: string): any | undefined {
