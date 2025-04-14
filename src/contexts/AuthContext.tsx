@@ -125,6 +125,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const signInWithGoogle = async () => {
     try {
+      // Make sure to include redirectTo without trailing slash
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
@@ -134,7 +135,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       if (error) {
         console.error("Google OAuth error details:", error);
-        toast.error(`Failed to sign in with Google: ${error.message}`);
+        if (error.message.includes("provider is not enabled")) {
+          toast.error("Google login is not enabled. Please check your Supabase configuration.");
+        } else {
+          toast.error(`Failed to sign in with Google: ${error.message}`);
+        }
         throw error;
       }
     } catch (error: any) {

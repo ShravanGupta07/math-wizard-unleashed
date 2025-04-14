@@ -24,19 +24,21 @@ const Solver = () => {
     try {
       const result = await solveMathProblem(mathProblem);
       
-      // Format the solution to be more readable in plain English
+      // Additional formatting to ensure no LaTeX remains and everything is in plain English
       if (result) {
         // Make sure it starts with "A classic!" introduction
         if (!result.solution.includes("A classic!")) {
           result.solution = `A classic! The solution to this problem is quite simple:\n\n${result.solution}`;
         }
         
-        // Replace any LaTeX notation with plain text
+        // Additional cleanup for any remaining LaTeX
         result.solution = result.solution
           .replace(/\\\$/g, "")
           .replace(/\$\$(.*?)\$\$/g, "$1")
           .replace(/\$(.*?)\$/g, "$1")
-          .replace(/\\boxed\{(.*?)\}/g, "【$1】");
+          .replace(/\\boxed\{(.*?)\}/g, "【$1】")
+          .replace(/\\frac\{(.*?)\}\{(.*?)\}/g, "$1/$2")
+          .replace(/\\sqrt\{(.*?)\}/g, "sqrt($1)");
         
         // Try to identify the final answer and box it if not already boxed
         if (!result.solution.includes("【")) {

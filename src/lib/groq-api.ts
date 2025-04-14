@@ -1,4 +1,3 @@
-
 import { toast } from "@/components/ui/sonner";
 
 // The API Key, ideally this would be stored in a more secure way like environment variables or server-side
@@ -36,10 +35,11 @@ export const solveMathProblem = async (problem: MathProblem): Promise<MathSoluti
     // Construct the system prompt based on the type of problem
     let systemPrompt = "You are MathWizard, an advanced AI specialized in solving mathematics problems. ";
     
-    systemPrompt += "Always provide clear, simple explanations in plain English. Start with 'A classic!' followed by a simple explanation. ";
-    systemPrompt += "Format answers as 'The solution to this problem is quite simple: {solution}' and use 【answer】 to highlight the final result. ";
-    systemPrompt += "Do NOT use LaTeX notation or dollar sign delimiters. Present math formulas in plain text format. ";
-    systemPrompt += "Include step-by-step solutions in numbered list format, with each step clearly explained.";
+    systemPrompt += "Always provide clear, simple explanations in plain English without any technical jargon. ";
+    systemPrompt += "Start every solution with 'A classic!' followed by a simple explanation anyone can understand. ";
+    systemPrompt += "Format the final answer as '【answer】' to highlight it clearly. ";
+    systemPrompt += "DO NOT use any LaTeX notations, mathematical symbols, or dollar signs. Write all equations and formulas in plain text format. ";
+    systemPrompt += "Break down solutions into simple numbered steps that a middle school student could follow.";
     
     // Construct the user prompt
     let userPrompt = "Solve this math problem: " + problem.problem;
@@ -85,12 +85,19 @@ export const solveMathProblem = async (problem: MathProblem): Promise<MathSoluti
     const data = await response.json();
     const aiResponse = data.choices[0].message.content;
     
+    // Clean and format the response
+    const cleanedResponse = aiResponse
+      .replace(/\\\$/g, "")
+      .replace(/\$\$(.*?)\$\$/g, "$1")
+      .replace(/\$(.*?)\$/g, "$1")
+      .replace(/\\boxed\{(.*?)\}/g, "【$1】");
+    
     // Format the response for simpler display
     const solution: MathSolution = {
-      solution: formatSolution(aiResponse),
-      explanation: extractExplanation(aiResponse),
-      steps: extractSteps(aiResponse),
-      visualization: extractVisualization(aiResponse)
+      solution: formatSolution(cleanedResponse),
+      explanation: extractExplanation(cleanedResponse),
+      steps: extractSteps(cleanedResponse),
+      visualization: extractVisualization(cleanedResponse)
     };
     
     return solution;
@@ -113,14 +120,18 @@ function formatSolution(text: string): string {
   // Extract just the numerical answer if possible
   const numericMatch = text.match(/(?:=|is|equals)\s*([\d\.\-]+)/i);
   if (numericMatch && numericMatch[1]) {
-    formattedSolution += `${numericMatch[1]} is our answer.`;
+    formattedSolution += `The answer is 【${numericMatch[1]}】.`;
   } else {
     // Otherwise use the whole text
     formattedSolution += text;
   }
   
-  // Replace any LaTeX boxed notation with our simplified boxing
-  return formattedSolution.replace(/\\boxed\{(.*?)\}/g, "【$1】");
+  // Replace any remaining LaTeX notation with simplified text
+  return formattedSolution
+    .replace(/\\boxed\{(.*?)\}/g, "【$1】")
+    .replace(/\\frac\{(.*?)\}\{(.*?)\}/g, "$1/$2")
+    .replace(/\\sqrt\{(.*?)\}/g, "sqrt($1)")
+    .replace(/\^(\d+)/g, "^$1");
 }
 
 // Helper functions to extract components from the AI response
