@@ -1,8 +1,7 @@
-
 import React, { createContext, useContext, useState, useEffect } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase } from "../integrations/supabase/client";
 import { User } from "@supabase/supabase-js";
-import { toast } from "@/components/ui/sonner";
+import { toast } from "../components/ui/sonner";
 
 interface UserWithMeta extends User {
   name: string | null;

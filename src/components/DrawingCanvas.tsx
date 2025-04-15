@@ -1,12 +1,38 @@
-
 import React, { useRef, useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Eraser, Undo2, Save, Trash2, Check, Loader2 } from "lucide-react";
+import { Eraser, Undo2, Save, Trash2, Check, Loader2, Grid2X2, Shapes } from "lucide-react";
 import { toast } from "@/components/ui/sonner";
+import { Slider } from "@/components/ui/slider";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Card, CardContent } from '@/components/ui/card';
+import { InlineMath } from 'react-katex';
+import { groq } from '@/lib/groq-api';
 
 interface DrawingCanvasProps {
   onSave: (imageData: string) => void;
 }
+
+// Mathematical shapes and symbols for recognition
+const mathSymbols = {
+  // Basic operators
+  plus: [[0, 0.5], [1, 0.5], [0.5, 0], [0.5, 1]],
+  minus: [[0, 0.5], [1, 0.5]],
+  multiply: [[0, 0], [1, 1], [0.5, 0.5], [0, 1], [1, 0]],
+  divide: [[0.5, 0.2], [0.5, 0.8], [0.5, 0.5], [0.5, 0.5]],
+  
+  // Comparison
+  equals: [[0, 0.3], [1, 0.3], [0, 0.7], [1, 0.7]],
+  lessThan: [[0.8, 0], [0.2, 0.5], [0.8, 1]],
+  greaterThan: [[0.2, 0], [0.8, 0.5], [0.2, 1]],
+  
+  // Brackets
+  leftParenthesis: [[0.7, 0], [0.3, 0.5], [0.7, 1]],
+  rightParenthesis: [[0.3, 0], [0.7, 0.5], [0.3, 1]],
+  
+  // Special symbols
+  squareRoot: [[0, 0.7], [0.2, 1], [0.4, 0], [1, 0]],
+  integral: [[0.7, 0], [0.5, 0.5], [0.7, 1], [0.3, 1]],
+};
 
 const DrawingCanvas: React.FC<DrawingCanvasProps> = ({ onSave }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -14,17 +40,23 @@ const DrawingCanvas: React.FC<DrawingCanvasProps> = ({ onSave }) => {
   const [context, setContext] = useState<CanvasRenderingContext2D | null>(null);
   const [drawingHistory, setDrawingHistory] = useState<ImageData[]>([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
-  const [tool, setTool] = useState<"pen" | "eraser">("pen");
+  const [tool, setTool] = useState<"pen" | "eraser" | "shape">("pen");
   const [lineWidth, setLineWidth] = useState(3);
   const [hasDrawing, setHasDrawing] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [gridSize, setGridSize] = useState(20);
+  const [gridOpacity, setGridOpacity] = useState(0.2);
+  const [selectedShape, setSelectedShape] = useState<keyof typeof mathSymbols | null>(null);
+  const [shapePreview, setShapePreview] = useState<{ x: number; y: number } | null>(null);
+  const [recognizedText, setRecognizedText] = useState('');
+  const [latexPreview, setLatexPreview] = useState('');
 
   // Initialize canvas
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    const ctx = canvas.getContext("2d");
+    const ctx = canvas.getContext("2d", { willReadFrequently: true });
     if (!ctx) return;
 
     // Set canvas size
@@ -54,11 +86,10 @@ const DrawingCanvas: React.FC<DrawingCanvasProps> = ({ onSave }) => {
 
   const drawGrid = (ctx: CanvasRenderingContext2D, width: number, height: number) => {
     ctx.save();
-    ctx.strokeStyle = "#e5e7eb"; // Light gray grid
+    ctx.strokeStyle = `rgba(229, 231, 235, ${gridOpacity})`; // Light gray grid with configurable opacity
     ctx.lineWidth = 0.5;
     
     // Draw horizontal lines
-    const gridSize = 20;
     for (let y = gridSize; y < height; y += gridSize) {
       ctx.beginPath();
       ctx.moveTo(0, y);
@@ -73,6 +104,22 @@ const DrawingCanvas: React.FC<DrawingCanvasProps> = ({ onSave }) => {
       ctx.lineTo(x, height);
       ctx.stroke();
     }
+    
+    // Draw coordinate axes
+    ctx.strokeStyle = `rgba(59, 130, 246, ${gridOpacity * 2})`; // Blue axes
+    ctx.lineWidth = 1;
+    
+    // x-axis
+    ctx.beginPath();
+    ctx.moveTo(0, height / 2);
+    ctx.lineTo(width, height / 2);
+    ctx.stroke();
+    
+    // y-axis
+    ctx.beginPath();
+    ctx.moveTo(width / 2, 0);
+    ctx.lineTo(width / 2, height);
+    ctx.stroke();
     
     ctx.restore();
   };
@@ -103,7 +150,7 @@ const DrawingCanvas: React.FC<DrawingCanvasProps> = ({ onSave }) => {
 
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
-  }, [context]);
+  }, [context, gridSize, gridOpacity]);
 
   const startDrawing = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
     if (!context) return;
@@ -129,12 +176,16 @@ const DrawingCanvas: React.FC<DrawingCanvasProps> = ({ onSave }) => {
     const x = clientX - rect.left;
     const y = clientY - rect.top;
     
-    context.beginPath();
-    context.moveTo(x, y);
+    if (tool === "shape" && selectedShape) {
+      setShapePreview({ x, y });
+    } else {
+      context.beginPath();
+      context.moveTo(x, y);
+    }
   };
 
   const draw = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
-    if (!isDrawing || !context) return;
+    if (!isDrawing || !context || !canvasRef.current) return;
     
     let clientX: number, clientY: number;
     
@@ -150,23 +201,63 @@ const DrawingCanvas: React.FC<DrawingCanvasProps> = ({ onSave }) => {
     }
     
     const canvas = canvasRef.current;
-    if (!canvas) return;
-    
     const rect = canvas.getBoundingClientRect();
     const x = clientX - rect.left;
     const y = clientY - rect.top;
     
-    if (tool === "eraser") {
-      context.strokeStyle = "#ffffff";
-      context.lineWidth = 20;
+    if (tool === "shape" && selectedShape && shapePreview) {
+      // Update shape preview position
+      setShapePreview({ x, y });
+      
+      // Redraw canvas with shape preview
+      const currentState = drawingHistory[historyIndex];
+      context.putImageData(currentState, 0, 0);
+      drawMathSymbol(selectedShape, shapePreview.x, shapePreview.y, x - shapePreview.x, y - shapePreview.y);
     } else {
-      context.strokeStyle = "#000000";
-      context.lineWidth = lineWidth;
+      if (tool === "eraser") {
+        context.strokeStyle = "#ffffff";
+        context.lineWidth = 20;
+      } else {
+        context.strokeStyle = "#000000";
+        context.lineWidth = lineWidth;
+      }
+      
+      context.lineTo(x, y);
+      context.stroke();
     }
     
-    context.lineTo(x, y);
-    context.stroke();
     setHasDrawing(true);
+  };
+
+  const drawMathSymbol = (
+    symbol: keyof typeof mathSymbols,
+    startX: number,
+    startY: number,
+    width: number,
+    height: number
+  ) => {
+    if (!context) return;
+    
+    const points = mathSymbols[symbol];
+    const symbolWidth = Math.abs(width);
+    const symbolHeight = Math.abs(height);
+    
+    context.beginPath();
+    context.strokeStyle = "#000000";
+    context.lineWidth = lineWidth;
+    
+    points.forEach((point, index) => {
+      const x = startX + point[0] * symbolWidth;
+      const y = startY + point[1] * symbolHeight;
+      
+      if (index === 0) {
+        context.moveTo(x, y);
+      } else {
+        context.lineTo(x, y);
+      }
+    });
+    
+    context.stroke();
   };
 
   const stopDrawing = () => {
@@ -174,6 +265,17 @@ const DrawingCanvas: React.FC<DrawingCanvasProps> = ({ onSave }) => {
     
     context.closePath();
     setIsDrawing(false);
+    
+    if (tool === "shape" && selectedShape && shapePreview) {
+      // Draw the final shape
+      const canvas = canvasRef.current;
+      const rect = canvas.getBoundingClientRect();
+      const x = shapePreview.x;
+      const y = shapePreview.y;
+      
+      drawMathSymbol(selectedShape, x, y, 50, 50); // Fixed size for shapes
+      setShapePreview(null);
+    }
     
     // Save state for undo
     const canvas = canvasRef.current;
@@ -240,6 +342,32 @@ const DrawingCanvas: React.FC<DrawingCanvasProps> = ({ onSave }) => {
     }
   };
 
+  const processDrawing = async () => {
+    try {
+      setIsProcessing(true);
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+
+      // Convert canvas to base64 image
+      const imageData = canvas.toDataURL('image/png');
+      
+      // Use Groq to recognize the drawn math
+      const recognizedMath = await groq.recognizeMathFromText(imageData);
+      setRecognizedText(recognizedMath);
+      
+      // Convert to LaTeX
+      const latex = await groq.convertToLatex(recognizedMath);
+      setLatexPreview(latex);
+
+      toast.success("Drawing processed successfully");
+    } catch (error) {
+      console.error("Error processing drawing:", error);
+      toast.error("Failed to process drawing");
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
   return (
     <div className="flex flex-col gap-4 w-full">
       <div className="flex flex-col md:flex-row md:justify-between gap-2">
@@ -247,79 +375,51 @@ const DrawingCanvas: React.FC<DrawingCanvasProps> = ({ onSave }) => {
           <Button 
             variant={tool === "pen" ? "default" : "outline"} 
             size="sm" 
-            onClick={() => setTool("pen")}
+            onClick={() => {
+              setTool("pen");
+              setSelectedShape(null);
+            }}
           >
             Pen
           </Button>
           <Button 
             variant={tool === "eraser" ? "default" : "outline"} 
             size="sm" 
-            onClick={() => setTool("eraser")}
+            onClick={() => {
+              setTool("eraser");
+              setSelectedShape(null);
+            }}
           >
-            <Eraser className="h-4 w-4 mr-1" /> Eraser
+            <Eraser className="h-4 w-4 mr-2" /> Eraser
           </Button>
-          <div className="flex items-center space-x-1">
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={() => setLineWidth(Math.max(1, lineWidth - 1))}
-              disabled={lineWidth <= 1}
-              className="px-2"
-            >
-              -
-            </Button>
-            <span className="text-xs w-12 text-center">Thickness: {lineWidth}</span>
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={() => setLineWidth(Math.min(10, lineWidth + 1))}
-              disabled={lineWidth >= 10}
-              className="px-2"
-            >
-              +
-            </Button>
-          </div>
-        </div>
-        <div className="flex space-x-2">
-          <Button variant="outline" size="sm" onClick={handleUndo} disabled={historyIndex <= 0}>
-            <Undo2 className="h-4 w-4 mr-1" /> Undo
+          <Button 
+            variant={tool === "shape" ? "default" : "outline"} 
+            size="sm" 
+            onClick={() => setTool("shape")}
+          >
+            <Shapes className="h-4 w-4 mr-2" /> Shapes
           </Button>
-          <Button variant="outline" size="sm" onClick={handleClear}>
-            <Trash2 className="h-4 w-4 mr-1" /> Clear
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={handleUndo}
+            disabled={historyIndex <= 0}
+          >
+            <Undo2 className="h-4 w-4 mr-2" /> Undo
+          </Button>
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={handleClear}
+          >
+            <Trash2 className="h-4 w-4 mr-2" /> Clear
           </Button>
         </div>
-      </div>
-      
-      <div className="border border-input rounded-md overflow-hidden bg-white">
-        <canvas
-          ref={canvasRef}
-          className="w-full touch-none"
-          style={{ height: "300px" }}
-          onMouseDown={startDrawing}
-          onMouseMove={draw}
-          onMouseUp={stopDrawing}
-          onMouseLeave={stopDrawing}
-          onTouchStart={startDrawing}
-          onTouchMove={draw}
-          onTouchEnd={stopDrawing}
-        />
-      </div>
-      
-      <div className="flex flex-col space-y-2">
-        <p className="text-xs text-muted-foreground">
-          Tips for better recognition:
-        </p>
-        <ul className="text-xs text-muted-foreground list-disc list-inside space-y-1">
-          <li>Write clearly with appropriate spacing</li>
-          <li>For fractions, draw a clear horizontal line between numerator and denominator</li>
-          <li>Write one complete equation or expression</li>
-          <li>Use the grid for alignment</li>
-        </ul>
         
         <Button 
           onClick={handleSave} 
           disabled={isProcessing || !hasDrawing}
-          className="mt-4"
+          size="sm"
         >
           {isProcessing ? (
             <>
@@ -327,11 +427,104 @@ const DrawingCanvas: React.FC<DrawingCanvasProps> = ({ onSave }) => {
             </>
           ) : (
             <>
-              <Check className="h-4 w-4 mr-2" /> Solve Problem
+              <Save className="h-4 w-4 mr-2" /> Save & Solve
             </>
           )}
         </Button>
       </div>
+
+      {/* Shape selector */}
+      {tool === "shape" && (
+        <div className="grid grid-cols-4 gap-2 mb-4">
+          {Object.keys(mathSymbols).map((symbol) => (
+            <Button
+              key={symbol}
+              variant={selectedShape === symbol ? "default" : "outline"}
+              size="sm"
+              onClick={() => setSelectedShape(symbol as keyof typeof mathSymbols)}
+              className="h-10"
+            >
+              {symbol}
+            </Button>
+          ))}
+        </div>
+      )}
+
+      {/* Grid controls */}
+      <div className="space-y-4 mb-4">
+        <div className="flex items-center gap-4">
+          <Grid2X2 className="h-4 w-4" />
+          <div className="flex-1">
+            <Slider
+              value={[gridSize]}
+              onValueChange={(value) => setGridSize(value[0])}
+              min={10}
+              max={50}
+              step={5}
+            />
+          </div>
+          <span className="text-sm text-muted-foreground w-12">
+            {gridSize}px
+          </span>
+        </div>
+        
+        <div className="flex items-center gap-4">
+          <span className="text-sm">Opacity</span>
+          <div className="flex-1">
+            <Slider
+              value={[gridOpacity * 100]}
+              onValueChange={(value) => setGridOpacity(value[0] / 100)}
+              min={0}
+              max={100}
+              step={5}
+            />
+          </div>
+          <span className="text-sm text-muted-foreground w-12">
+            {Math.round(gridOpacity * 100)}%
+          </span>
+        </div>
+      </div>
+
+      <div className="relative border rounded-lg overflow-hidden">
+        <canvas
+          ref={canvasRef}
+          onMouseDown={startDrawing}
+          onMouseMove={draw}
+          onMouseUp={stopDrawing}
+          onMouseLeave={stopDrawing}
+          onTouchStart={startDrawing}
+          onTouchMove={draw}
+          onTouchEnd={stopDrawing}
+          className="w-full aspect-[4/3] touch-none"
+        />
+      </div>
+
+      {recognizedText && (
+        <div className="mt-4">
+          <h3 className="text-lg font-semibold mb-2">Recognized Math:</h3>
+          <Card>
+            <CardContent className="p-4">
+              <p className="text-lg">{recognizedText}</p>
+              {latexPreview && (
+                <div className="mt-2">
+                  <div className="text-sm text-muted-foreground mb-2">Preview:</div>
+                  <div className="text-lg">
+                    <InlineMath math={latexPreview} />
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      <Button
+        onClick={processDrawing}
+        disabled={isProcessing}
+        className="w-full"
+      >
+        {isProcessing ? "Processing..." : "Process"}
+      </Button>
     </div>
   );
 };

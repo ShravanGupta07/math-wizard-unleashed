@@ -1,8 +1,21 @@
+// Add type declarations at the top
+declare global {
+  interface Window {
+    webkitSpeechRecognition: any;
+    SpeechRecognition: any;
+  }
+}
 
-import { toast } from "@/components/ui/sonner";
+import { toast } from "../components/ui/sonner";
+import { Groq } from 'groq-sdk';
 
 // The API Key, ideally this would be stored in a more secure way like environment variables or server-side
 const GROQ_API_KEY = "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";
+
+const groqClient = new Groq({
+  apiKey: GROQ_API_KEY,
+  dangerouslyAllowBrowser: true // Allow browser usage with proper security measures
+});
 
 export interface MathProblem {
   problem: string;
@@ -86,61 +99,20 @@ export const solveMathProblem = async (problem: MathProblem): Promise<MathSoluti
         const buffer = new Uint8Array(content as ArrayBuffer);
         content = btoa(String.fromCharCode.apply(null, Array.from(buffer)));
       }
+      
+      // Truncate content if too large
+      const maxContentLength = 3000; // Conservative limit
+      if (content.length > maxContentLength) {
+        content = content.slice(0, maxContentLength) + "...";
+      }
     }
     
     // Detect the mathematical topic for more accurate solutions
     const detectedTopic = problem.type === "text" ? detectMathTopic(problem.problem) : "general";
     
-    // Construct the system prompt based on the type of problem and detected topic
-    let systemPrompt = "You are MathWizard, an advanced AI specialized in solving mathematics problems with extreme accuracy. ";
-    
-    // Add topic-specific instructions
-    if (detectedTopic === "algebra") {
-      systemPrompt += "You're particularly expert in algebra. Focus on equation solving, factoring, and simplification. ";
-    } else if (detectedTopic === "calculus") {
-      systemPrompt += "You're particularly expert in calculus. Pay attention to derivatives, integrals, limits, and optimization. ";
-    } else if (detectedTopic === "trigonometry") {
-      systemPrompt += "You're particularly expert in trigonometry. Focus on trigonometric functions, identities, and triangle problems. ";
-    } else if (detectedTopic === "geometry") {
-      systemPrompt += "You're particularly expert in geometry. Pay attention to shapes, areas, volumes, and spatial relationships. ";
-    } else if (detectedTopic === "statistics") {
-      systemPrompt += "You're particularly expert in statistics. Focus on probability, distributions, and data analysis. ";
-    } else if (detectedTopic === "linearAlgebra") {
-      systemPrompt += "You're particularly expert in linear algebra. Pay attention to matrices, vectors, and linear systems. ";
-    } else if (detectedTopic === "numberTheory") {
-      systemPrompt += "You're particularly expert in number theory. Focus on properties of integers, divisibility, and primes. ";
-    }
-    
-    systemPrompt += "Always provide clear, step-by-step explanations that anyone can understand. ";
-    systemPrompt += "Start every solution with 'A classic!' followed by a simple explanation anyone can understand. ";
-    systemPrompt += "Format the final answer as '【answer】' to highlight it clearly. ";
-    
-    // New instructions for LaTeX, hints, and plotting
-    systemPrompt += "Provide valid LaTeX for all mathematical expressions using standard LaTeX notation, wrapped within $$ for display and $ for inline. ";
-    systemPrompt += "Include a 'Topic:' section that identifies the mathematical field this problem belongs to. ";
-    
-    if (problem.requestHints) {
-      systemPrompt += "Include 3 progressive hints in a 'Hints:' section, starting from vague to more specific, that guide towards the solution without giving it away. ";
-    }
-    
-    if (problem.requestVisualization) {
-      systemPrompt += "If the problem involves graphing functions, provide plot data in JSON format within ```json ``` tags, with x and y coordinates. ";
-      systemPrompt += "For geometry problems, describe the visualization in detail using LaTeX notation for coordinates and shapes. ";
-    }
-    
-    // Type-specific system prompts for higher accuracy
-    if (problem.type === "voice") {
-      systemPrompt += " For this voice input, focus on correctly interpreting mathematical terminology. ";
-      systemPrompt += " Carefully listen for numbers, operations, and mathematical terms. ";
-      systemPrompt += " If you hear terms like 'x squared', interpret as x^2. If you hear 'square root', interpret as sqrt(). ";
-      systemPrompt += " For fractions, clearly identify numerator and denominator.";
-    } else if (problem.type === "drawing") {
-      systemPrompt += " For this hand-drawn math, focus on correctly interpreting symbols and numbers. ";
-      systemPrompt += " Pay attention to the structure of equations, fractions, exponents, and operation symbols. ";
-      systemPrompt += " Differentiate between similar-looking symbols like x and ×, or + and t. ";
-      systemPrompt += " For fractions, identify the numerator and denominator separated by a horizontal line.";
-      systemPrompt += " If the drawing seems to be a graph or geometric figure, describe what you see in mathematical terms.";
-    }
+    // Construct a more concise system prompt
+    const systemPrompt = `You are MathWizard, specialized in ${detectMathTopic(problem.problem)}. 
+      Provide clear solutions with LaTeX notation. Format final answer as '【answer】'.`;
     
     // Construct the user prompt
     let userPrompt = "Solve this math problem: " + problem.problem;
@@ -170,7 +142,7 @@ export const solveMathProblem = async (problem: MathProblem): Promise<MathSoluti
       userPrompt += " Please provide progressive hints that would help someone solve this on their own.";
     }
     
-    // Make request to GROQ API with enhanced parameters for accuracy
+    // Make request to GROQ API with optimized parameters
     const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -178,7 +150,7 @@ export const solveMathProblem = async (problem: MathProblem): Promise<MathSoluti
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
-        model: "llama3-70b-8192",
+        model: "llama-3.3-70b-versatile",
         messages: [
           {
             role: "system",
@@ -186,12 +158,14 @@ export const solveMathProblem = async (problem: MathProblem): Promise<MathSoluti
           },
           {
             role: "user",
-            content: userPrompt
+            content: problem.problem.slice(0, 2000) // Limit problem length
           }
         ],
-        temperature: 0.2, // Lower temperature for more deterministic outputs
-        max_tokens: 4096,
-        top_p: 0.95, // Slightly reduced top_p for more focused sampling
+        temperature: 0.1,
+        max_tokens: 1000, // Reduced token limit
+        top_p: 0.99,
+        frequency_penalty: 0.1,
+        presence_penalty: 0.1
       })
     });
     
@@ -231,7 +205,11 @@ export const solveMathProblem = async (problem: MathProblem): Promise<MathSoluti
     return solution;
   } catch (error) {
     console.error("Error solving math problem:", error);
+    if (error instanceof Error && error.message.includes("rate_limit_exceeded")) {
+      toast.error("Processing limit reached. Please try with a shorter input.");
+    } else {
     toast.error("Failed to solve the math problem. Please try again.");
+    }
     throw error;
   }
 };
@@ -366,14 +344,727 @@ function extractSteps(text: string): string[] | undefined {
 }
 
 function extractVisualization(text: string): any | undefined {
+  try {
   // Look for visualization data in JSON format
-  const jsonMatch = text.match(/```json\s*([\s\S]*?)\s*```/);
-  if (jsonMatch && jsonMatch[1]) {
+    const visualMatch = text.match(/```json\s*([\s\S]*?)\s*```/);
+    if (visualMatch) {
+      const visualData = JSON.parse(visualMatch[1]);
+      return visualData;
+    }
+
+    // Look for coordinate pairs in the text
+    const coordMatch = text.match(/coordinates:\s*\[([\s\S]*?)\]/);
+    if (coordMatch) {
+      const coords = coordMatch[1]
+        .split(/[;,\n]/)
+        .map(pair => pair.trim())
+        .filter(pair => pair)
+        .map(pair => {
+          const [x, y] = pair.split(/[(),\s]+/).filter(n => n).map(Number);
+          return { x, y };
+        });
+      return coords;
+    }
+
+    // Extract geometric shapes and their properties
+    const shapes = [];
+    const shapeMatches = text.matchAll(/shape:\s*(\w+)\s*\{([^}]+)\}/g);
+    for (const match of shapeMatches) {
+      const [_, type, props] = match;
+      const properties = Object.fromEntries(
+        props.split(',')
+          .map(prop => prop.trim().split(':').map(p => p.trim()))
+      );
+      shapes.push({ type, ...properties });
+    }
+    if (shapes.length > 0) {
+      return { shapes };
+    }
+
+    return undefined;
+  } catch (error) {
+    console.error("Error extracting visualization:", error);
+    return undefined;
+  }
+}
+
+// Add new function to enhance drawing recognition
+function enhanceDrawingRecognition(content: string): string {
+  // Enhance symbol recognition
+  let enhanced = content
+    .replace(/[×Xx]/g, '×') // Standardize multiplication symbols
+    .replace(/[÷]/g, '/') // Standardize division symbols
+    .replace(/[=]/g, '=') // Fix potential equals signs
+    .replace(/[\^⁰¹²³⁴⁵⁶⁷⁸⁹]/g, match => {
+      // Convert superscript numbers to proper exponents
+      const superscriptMap: { [key: string]: string } = {
+        '⁰': '^0', '¹': '^1', '²': '^2', '³': '^3', '⁴': '^4',
+        '⁵': '^5', '⁶': '^6', '⁷': '^7', '⁸': '^8', '⁹': '^9'
+      };
+      return superscriptMap[match] || match;
+    });
+
+  // Detect and format fractions
+  enhanced = enhanced.replace(/(\d+)\/(\d+)/g, '\\frac{$1}{$2}');
+
+  // Detect and format square roots
+  enhanced = enhanced.replace(/√(\d+)/g, '\\sqrt{$1}');
+
+  return enhanced;
+}
+
+export const groq = {
+  recognizeMathFromText: async (text: string): Promise<string> => {
     try {
-      return JSON.parse(jsonMatch[1]);
-    } catch (e) {
-      console.error("Error parsing visualization JSON:", e);
+      // Truncate long inputs to stay within token limits
+      const maxInputLength = 2000; // Conservative limit to stay well under the 6000 TPM limit
+      const truncatedText = text.length > maxInputLength 
+        ? text.slice(0, maxInputLength) + "..."
+        : text;
+
+      const response = await groqClient.chat.completions.create({
+        messages: [
+          {
+            role: "system",
+            content: "You are a math expert. Extract and correct mathematical expressions from the input. Return only the mathematical expression in a clear format."
+          },
+          {
+            role: "user",
+            content: truncatedText
+          }
+        ],
+        model: "llama-3.3-70b-versatile",
+        temperature: 0.1,
+        max_tokens: 500 // Reduced from 100 to allow for longer expressions
+      });
+
+      return response.choices[0].message.content || text;
+    } catch (error) {
+      console.error("Error improving math text:", error);
+      if (error instanceof Error && error.message.includes("rate_limit_exceeded")) {
+        // If we hit rate limits, return the original text
+        toast.error("Processing limit reached. Using original input.");
+        return text;
+      }
+      return text;
+    }
+  },
+
+  transcribeAudio: async (audioBlob: Blob): Promise<string> => {
+    try {
+      // First, use Web Speech API for initial transcription
+      const transcription = await new Promise<string>((resolve, reject) => {
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SpeechRecognition) {
+          throw new Error("Speech recognition is not supported in this browser");
+        }
+
+        const recognition = new SpeechRecognition();
+        recognition.lang = 'en-US';
+        recognition.continuous = false;
+        recognition.interimResults = false;
+
+        let hasRecognizedSpeech = false;
+
+        recognition.onresult = (event) => {
+          const transcript = event.results[0][0].transcript;
+          console.log("Initial transcription:", transcript);
+          hasRecognizedSpeech = true;
+          resolve(transcript);
+        };
+
+        recognition.onerror = (event) => {
+          console.error("Recognition error:", event.error);
+          if (event.error === 'no-speech') {
+            reject(new Error('No speech detected. Please speak clearly and try again.'));
+          } else if (event.error === 'audio-capture') {
+            reject(new Error('No microphone was found or microphone is disabled.'));
+          } else if (event.error === 'not-allowed') {
+            reject(new Error('Microphone permission was denied. Please allow microphone access.'));
+          } else {
+            reject(new Error(`Speech recognition error: ${event.error}`));
+          }
+        };
+
+        recognition.onend = () => {
+          if (!hasRecognizedSpeech) {
+            reject(new Error('No speech detected. Please speak clearly and try again.'));
+          }
+          recognition.stop();
+        };
+
+        // Create an audio element and play the blob
+        const audio = new Audio(URL.createObjectURL(audioBlob));
+        audio.onended = () => {
+          recognition.stop();
+        };
+        audio.play();
+        recognition.start();
+      });
+
+      // Truncate transcription if too long
+      const maxTranscriptionLength = 2000;
+      const truncatedTranscription = transcription.length > maxTranscriptionLength 
+        ? transcription.slice(0, maxTranscriptionLength) + "..."
+        : transcription;
+
+      const response = await groqClient.chat.completions.create({
+        messages: [
+          {
+            role: "system",
+            content: "Convert spoken math to written mathematical expressions. Be concise."
+          },
+          {
+            role: "user",
+            content: truncatedTranscription
+          }
+        ],
+        model: "llama-3.3-70b-versatile",
+        temperature: 0.2,
+        max_tokens: 500
+      });
+
+      const improvedTranscription = response.choices[0].message.content;
+      console.log("Improved transcription:", improvedTranscription);
+
+      if (!improvedTranscription || improvedTranscription.trim().length === 0) {
+        throw new Error('No valid mathematical expression detected');
+      }
+
+      // Clean up the transcription
+      const cleanedTranscription = improvedTranscription
+        .replace(/\s+/g, ' ')
+        .trim()
+        .replace(/(\d+)x/g, '$1*x')
+        .replace(/\^(\d+)/g, '^{$1}')
+        .replace(/sqrt/g, '\\sqrt');
+
+      return cleanedTranscription;
+
+    } catch (error) {
+      console.error("Error in transcribeAudio:", error);
+      if (error instanceof Error && error.message.includes("rate_limit_exceeded")) {
+        toast.error("Processing limit reached. Please try with a shorter recording.");
+        throw new Error("Processing limit reached");
+      }
+      throw new Error(error instanceof Error ? error.message : 'Failed to process audio');
+    }
+  },
+
+  convertToLatex: async (text: string): Promise<string> => {
+    try {
+      const response = await groqClient.chat.completions.create({
+        messages: [
+          {
+            role: "system",
+            content: `You are a math expert specializing in LaTeX conversion.
+            Convert mathematical expressions to proper LaTeX format.
+            Examples:
+            - "x^2 + 5" → "$x^2 + 5$"
+            - "√16" → "$\\sqrt{16}$"
+            - "2x - 3 = 7" → "$2x - 3 = 7$"
+            - "∫x^2 dx" → "$\\int x^2 dx$"
+            - "lim(x→∞) 1/x" → "$\\lim_{x \\to \\infty} \\frac{1}{x}$"
+            Return only the LaTeX expression without any explanation.`
+          },
+          {
+            role: "user",
+            content: text
+          }
+        ],
+        model: "llama-3.3-70b-versatile",
+        temperature: 0.1,
+        max_tokens: 100
+      });
+
+      return response.choices[0].message.content || text;
+    } catch (error) {
+      console.error("Error converting to LaTeX:", error);
+      return text;
     }
   }
-  return undefined;
+};
+
+// Unit conversion function
+export const convertUnits = async (value: number, fromUnit: string, toUnit: string): Promise<number> => {
+  try {
+    const response = await groqClient.chat.completions.create({
+      messages: [
+        {
+          role: "system",
+          content: `You are a precise mathematical unit converter. You will:
+          1. Convert the given value between units accurately
+          2. Return ONLY the numeric result, no text
+          3. Use standard conversion formulas
+          4. Handle edge cases and invalid conversions
+          5. Maintain precision to 4 decimal places`
+        },
+        {
+          role: "user",
+          content: `Convert ${value} ${fromUnit} to ${toUnit}`
+        }
+      ],
+      model: "llama-3.3-70b-versatile",
+      temperature: 0,
+      max_tokens: 100,
+    });
+
+    const result = response.choices[0].message.content;
+    return parseFloat(result || "0");
+  } catch (error) {
+    console.error("Error in unit conversion:", error);
+    throw new Error("Failed to convert units");
+  }
+};
+
+// Generate graph data
+export const generateGraphData = async (expression: string, range: { start: number; end: number; step: number }): Promise<{ x: number; y: number }[]> => {
+  try {
+    const response = await groqClient.chat.completions.create({
+      messages: [
+        {
+          role: "system",
+          content: `You are a mathematical graphing assistant. You will:
+          1. Generate coordinate points for mathematical expressions
+          2. Return a valid JSON array of {x, y} points
+          3. Handle various mathematical functions and operators
+          4. Account for domain restrictions and asymptotes
+          5. Return enough points for smooth plotting
+          
+          Example output format:
+          [{"x": -1, "y": 1}, {"x": 0, "y": 0}, {"x": 1, "y": 1}]`
+        },
+        {
+          role: "user",
+          content: `Generate coordinate points for the expression: ${expression}
+          Range: x from ${range.start} to ${range.end} with step ${range.step}
+          Return only the JSON array, no explanation.`
+        }
+      ],
+      model: "llama-3.3-70b-versatile",
+      temperature: 0,
+      max_tokens: 2000,
+    });
+
+    const result = response.choices[0].message.content;
+    return JSON.parse(result || "[]");
+  } catch (error) {
+    console.error("Error generating graph data:", error);
+    throw new Error("Failed to generate graph data");
+  }
+};
+
+// Helper function to escape LaTeX for JSON
+function escapeLatex(latex: string): string {
+  return latex.replace(/\\/g, '\\\\');
 }
+
+// Helper function to unescape LaTeX after JSON parsing
+function unescapeLatex(latex: string): string {
+  return latex.replace(/\\\\/g, '\\');
+}
+
+// Helper function to safely parse JSON with LaTeX content
+function parseLatexJson(jsonString: string) {
+  // First, normalize the JSON string
+  const normalizedJson = jsonString
+    .replace(/\n/g, ' ')
+    .replace(/\r/g, '')
+    .replace(/\t/g, ' ')
+    .trim();
+
+  // Handle LaTeX content before parsing
+  const processedJson = normalizedJson.replace(
+    /"(?:[^"\\]|\\.)*"/g,
+    (match) => {
+      // Process only the content inside quotes
+      return match.replace(/\\/g, '\\\\')
+        .replace(/\{/g, '\\{')
+        .replace(/\}/g, '\\}')
+        .replace(/\[/g, '\\[')
+        .replace(/\]/g, '\\]');
+    }
+  );
+
+  try {
+    // Parse the processed JSON
+    const parsed = JSON.parse(processedJson);
+
+    // Function to restore LaTeX in strings
+    function restoreLatex(str: string): string {
+      if (typeof str !== 'string') return str;
+      return str
+        .replace(/\\\\/g, '\\')
+        .replace(/\\\{/g, '{')
+        .replace(/\\\}/g, '}')
+        .replace(/\\\[/g, '[')
+        .replace(/\\\]/g, ']');
+    }
+
+    // Recursively restore LaTeX in the parsed object
+    function restoreLatexInObject(obj: any): any {
+      if (typeof obj === 'string') {
+        return restoreLatex(obj);
+      }
+      if (Array.isArray(obj)) {
+        return obj.map(item => restoreLatexInObject(item));
+      }
+      if (obj && typeof obj === 'object') {
+        const result: Record<string, any> = {};
+        for (const [key, value] of Object.entries(obj)) {
+          result[key] = restoreLatexInObject(value);
+        }
+        return result;
+      }
+      return obj;
+    }
+
+    return restoreLatexInObject(parsed);
+  } catch (error) {
+    // If parsing fails, try a more aggressive cleaning approach
+    try {
+      const cleanedJson = normalizedJson
+        .replace(/\\(?!["\\/bfnrt])/g, '\\\\')
+        .replace(/(?<!\\)"/g, '\\"')
+        .replace(/[\x00-\x1F\x7F-\x9F]/g, '');
+      
+      return JSON.parse(cleanedJson);
+    } catch (secondError) {
+      console.error('Error parsing LaTeX JSON:', error);
+      console.log('Problematic JSON string:', jsonString);
+      throw new Error('Failed to parse formula data');
+    }
+  }
+}
+
+// Helper function to clean and format LaTeX content
+export const formatLatexContent = (content: string): string => {
+  // First, unescape double backslashes
+  const unescaped = content.replace(/\\\\/g, '\\');
+  
+  // Split into sections (assuming each rule is separated by newlines)
+  const sections = unescaped.split('\n\n').filter(section => section.trim());
+  
+  // Process each section
+  const formattedSections = sections.map(section => {
+    // Extract title (first line)
+    const lines = section.split('\n');
+    const title = lines[0].trim();
+    
+    // Find the main formula (usually after "Formula:" or similar)
+    const formulaLine = lines.find(line => line.toLowerCase().includes('formula:'));
+    const formula = formulaLine ? formulaLine.split(':')[1].trim() : '';
+    
+    // Find the explanation (usually after "Explanation:" or similar)
+    const explanationLine = lines.find(line => line.toLowerCase().includes('explanation:'));
+    const explanation = explanationLine ? explanationLine.split(':')[1].trim() : '';
+    
+    // Find the example (usually after "Example:" or similar)
+    const exampleLine = lines.find(line => line.toLowerCase().includes('example:'));
+    const example = exampleLine ? exampleLine.split(':')[1].trim() : '';
+    
+    // Format the section in Markdown
+    return `## ${title}
+
+**Formula:**
+$$${formula}$$
+
+**Explanation:**
+${explanation}
+
+**Example:**
+$$${example}$$
+
+---`;
+  });
+  
+  return formattedSections.join('\n\n');
+};
+
+// Helper function to convert LaTeX to plain text
+export const latexToPlainText = (content: string): string => {
+  // Common LaTeX to plain text conversions
+  const replacements = {
+    '\\\\frac\\{([^}]+)\\}\\{([^}]+)\\}': '$1/$2',
+    '\\\\theta': 'θ',
+    '\\\\sin': 'sin',
+    '\\\\cos': 'cos',
+    '\\\\tan': 'tan',
+    '\\\\sqrt\\{([^}]+)\\}': 'sqrt($1)',
+    '\\\\pi': 'π',
+    '\\\\infty': '∞',
+    '\\\\cdot': '·',
+    '\\\\times': '×',
+    '\\\\div': '÷',
+    '\\\\pm': '±',
+    '\\\\approx': '≈',
+    '\\\\neq': '≠',
+    '\\\\leq': '≤',
+    '\\\\geq': '≥',
+    '\\\\rightarrow': '→',
+    '\\\\leftarrow': '←',
+    '\\\\Rightarrow': '⇒',
+    '\\\\Leftarrow': '⇐',
+    '\\\\leftrightarrow': '↔',
+    '\\\\Leftrightarrow': '⇔',
+    '\\\\sum': 'Σ',
+    '\\\\prod': 'Π',
+    '\\\\int': '∫',
+    '\\\\partial': '∂',
+    '\\\\nabla': '∇',
+    '\\\\alpha': 'α',
+    '\\\\beta': 'β',
+    '\\\\gamma': 'γ',
+    '\\\\delta': 'δ',
+    '\\\\epsilon': 'ε',
+    '\\\\zeta': 'ζ',
+    '\\\\eta': 'η',
+    '\\\\lambda': 'λ',
+    '\\\\mu': 'μ',
+    '\\\\nu': 'ν',
+    '\\\\xi': 'ξ',
+    '\\\\rho': 'ρ',
+    '\\\\sigma': 'σ',
+    '\\\\tau': 'τ',
+    '\\\\phi': 'φ',
+    '\\\\chi': 'χ',
+    '\\\\psi': 'ψ',
+    '\\\\omega': 'ω',
+    '\\\\Delta': 'Δ',
+    '\\\\Gamma': 'Γ',
+    '\\\\Theta': 'Θ',
+    '\\\\Lambda': 'Λ',
+    '\\\\Xi': 'Ξ',
+    '\\\\Pi': 'Π',
+    '\\\\Sigma': 'Σ',
+    '\\\\Phi': 'Φ',
+    '\\\\Psi': 'Ψ',
+    '\\\\Omega': 'Ω'
+  };
+
+  // Remove markdown formatting
+  let text = content
+    .replace(/##\s*/g, '')
+    .replace(/\*\*Formula:\*\*\s*/, '')
+    .replace(/\$\$?/g, '')
+    .replace(/\*\*/g, '');
+
+  // Apply LaTeX to plain text conversions
+  for (const [pattern, replacement] of Object.entries(replacements)) {
+    text = text.replace(new RegExp(pattern, 'g'), replacement);
+  }
+
+  // Clean up any remaining LaTeX commands
+  text = text.replace(/\\[a-zA-Z]+/g, '');
+  
+  // Normalize whitespace
+  text = text.replace(/\s+/g, ' ').trim();
+
+  return text;
+};
+
+// Update the getFormula function to use the new formatting
+export const getFormula = async (topic: string): Promise<{ name: string; formula: string; description: string; example: string }[]> => {
+  try {
+    const response = await groqClient.chat.completions.create({
+      messages: [
+        {
+          role: "system",
+          content: `You are a mathematical formula expert. Return a JSON array of formulas.
+          Each formula must include: name, formula (in LaTeX), description, and example.
+          
+          Format your response EXACTLY like this, with no additional text:
+          {
+            "formulas": [
+              {
+                "name": "Formula Name",
+                "formula": "LaTeX Formula",
+                "description": "Clear description",
+                "example": "Example"
+              }
+            ]
+          }
+          
+          Important:
+          1. Keep LaTeX simple and avoid complex nesting
+          2. Use basic LaTeX commands only
+          3. Escape special characters properly
+          4. Return ONLY the JSON object`
+        },
+        {
+          role: "user",
+          content: `Provide formulas related to: ${topic}`
+        }
+      ],
+      model: "llama-3.3-70b-versatile",
+      temperature: 0.1,
+      max_tokens: 2000,
+    });
+
+    const result = response.choices[0].message.content;
+    if (!result) return [];
+
+    // Clean up the response
+    const cleaned = result
+      .trim()
+      .replace(/^[^{]*(\{)/, '$1')
+      .replace(/}[^}]*$/, '}')
+      .replace(/[\x00-\x1F\x7F-\x9F]/g, '')
+      .replace(/\s+/g, ' ');
+
+    try {
+      const parsed = parseLatexJson(cleaned);
+      const formulas = Array.isArray(parsed.formulas) ? parsed.formulas : [];
+      
+      // Format each formula's content
+      return formulas.map(formula => ({
+        ...formula,
+        formula: latexToPlainText(formula.formula),
+        example: latexToPlainText(formula.example)
+      }));
+    } catch (parseError) {
+      console.error("Parse error:", parseError);
+      // Fallback: Try to extract formulas using regex
+      const formulas = [];
+      const formulaMatches = cleaned.matchAll(/"name":\s*"([^"]+)".*?"formula":\s*"([^"]+)".*?"description":\s*"([^"]+)".*?"example":\s*"([^"]+)"/g);
+      
+      for (const match of formulaMatches) {
+        formulas.push({
+          name: match[1],
+          formula: latexToPlainText(match[2]),
+          description: match[3],
+          example: latexToPlainText(match[4])
+        });
+      }
+      
+      return formulas;
+    }
+  } catch (error) {
+    console.error("Error fetching formulas:", error);
+    return [];
+  }
+};
+
+// Helper function to format educational content
+export const formatEducationalContent = (topic: string, content: any): string => {
+  // Default content for Matrices if none provided
+  const defaultContent = {
+    topic: "Matrices",
+    definition: "A rectangular array of numbers arranged in rows and columns, used in linear algebra and various applications.",
+    keyPoints: [
+      "Dimensions: rows × columns",
+      "Operations: add, subtract, multiply",
+      "Types: square, identity, zero matrices",
+      "Used for solving systems of equations",
+      "Key properties: determinant, inverse"
+    ],
+    example: {
+      problem: "Add matrices A = [1 2] and B = [5 6]\n    [3 4]      [7 8]",
+      solution: "A + B = [6 8]\n        [10 12]"
+    },
+    relatedTopics: [
+      "Linear Algebra",
+      "Vector Spaces",
+      "Systems of Equations",
+      "Determinants",
+      "Eigenvalues"
+    ]
+  };
+
+  const data = content || defaultContent;
+
+  return `# ${data.topic}
+
+## Definition
+${data.definition}
+
+## Key Points
+${data.keyPoints.map(point => `- ${point}`).join('\n')}
+
+## Example
+${data.example.problem}
+
+${data.example.solution}
+
+## Related Topics
+${data.relatedTopics.map(topic => `- ${topic}`).join('\n')}
+
+---
+`;
+};
+
+// Update the exploreTopic function to use the new formatting
+export const exploreTopic = async (topic: string): Promise<{
+  topic: string;
+  description: string;
+  keyPoints: string[];
+  relatedTopics: string[];
+  examples: { problem: string; solution: string }[];
+}> => {
+  try {
+    const response = await groqClient.chat.completions.create({
+      messages: [
+        {
+          role: "system",
+          content: `You are a mathematical topic explorer. Return a JSON object with educational content about the topic.
+          Include: definition, key points, example, and related topics.
+          Use clear, plain text without LaTeX or special formatting.`
+        },
+        {
+          role: "user",
+          content: `Explore the mathematical topic: ${topic}`
+        }
+      ],
+      model: "llama-3.3-70b-versatile",
+      temperature: 0.1,
+      max_tokens: 2000,
+    });
+
+    const result = response.choices[0].message.content;
+    if (!result) {
+      return {
+        topic: topic,
+        description: formatEducationalContent(topic, null),
+        keyPoints: [],
+        relatedTopics: [],
+        examples: []
+      };
+    }
+
+    // Clean and parse the response
+    const cleaned = result
+      .trim()
+      .replace(/^[^{]*(\{)/, '$1')
+      .replace(/}[^}]*$/, '}')
+      .replace(/[\x00-\x1F\x7F-\x9F]/g, '')
+      .replace(/\s+/g, ' ');
+
+    try {
+      const parsed = JSON.parse(cleaned);
+      return {
+        topic: parsed.topic || topic,
+        description: formatEducationalContent(topic, parsed),
+        keyPoints: Array.isArray(parsed.keyPoints) ? parsed.keyPoints : [],
+        relatedTopics: Array.isArray(parsed.relatedTopics) ? parsed.relatedTopics : [],
+        examples: Array.isArray(parsed.examples) ? parsed.examples : []
+      };
+    } catch (parseError) {
+      return {
+        topic: topic,
+        description: formatEducationalContent(topic, null),
+        keyPoints: [],
+        relatedTopics: [],
+        examples: []
+      };
+    }
+  } catch (error) {
+    console.error("Error exploring topic:", error);
+    return {
+      topic: topic,
+      description: formatEducationalContent(topic, null),
+      keyPoints: [],
+      relatedTopics: [],
+      examples: []
+    };
+  }
+};

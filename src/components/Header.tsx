@@ -1,11 +1,10 @@
-
 import { Link, useLocation } from "react-router-dom";
-import { Calculator, History, BarChart3, Info, User, Settings, BookOpen, Users } from "lucide-react";
+import { Calculator, History, BarChart3, Info, User, Settings, BookOpen, Users, LogOut } from "lucide-react";
 import { ModeToggle } from "./ModeToggle";
 import { Button } from "./ui/button";
-import { useAuth } from "@/contexts/AuthContext";
-import { cn } from "@/lib/utils";
-import { useIsMobile } from "@/hooks/use-mobile";
+import { useAuth } from "../contexts/AuthContext";
+import { cn } from "../lib/utils";
+import { useIsMobile } from "../hooks/use-mobile";
 
 const NavItem = ({ 
   to, 
@@ -34,8 +33,16 @@ const NavItem = ({
 
 const Header = () => {
   const location = useLocation();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, signOut } = useAuth();
   const isMobile = useIsMobile();
+
+  const handleSignOut = async () => {
+    try {
+      await signOut();
+    } catch (error) {
+      console.error("Failed to sign out:", error);
+    }
+  };
 
   return (
     <header className="sticky top-0 z-10 bg-background/80 backdrop-blur-md border-b border-border">
@@ -92,15 +99,21 @@ const Header = () => {
           {!isMobile && <ModeToggle />}
           
           {isAuthenticated ? (
-            <Button variant="outline" asChild size="sm">
-              <Link to="/profile">
-                <User className="h-4 w-4 mr-2" />
-                Profile
-              </Link>
-            </Button>
+            <>
+              <Button variant="outline" asChild size="sm">
+                <Link to="/profile">
+                  <User className="h-4 w-4 mr-2" />
+                  Profile
+                </Link>
+              </Button>
+              <Button variant="outline" size="sm" onClick={handleSignOut}>
+                <LogOut className="h-4 w-4 mr-2" />
+                Sign Out
+              </Button>
+            </>
           ) : (
             <Button variant="outline" asChild size="sm">
-              <Link to="/profile">
+              <Link to="/login">
                 <User className="h-4 w-4 mr-2" />
                 Sign In
               </Link>

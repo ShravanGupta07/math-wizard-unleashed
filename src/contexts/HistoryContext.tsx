@@ -1,9 +1,8 @@
-
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { useAuth } from "./AuthContext";
-import { MathProblem, MathSolution } from "@/lib/groq-api";
-import { toast } from "@/components/ui/sonner";
-import { supabase } from "@/integrations/supabase/client";
+import { MathProblem, MathSolution } from "../lib/groq-api";
+import { toast } from "../components/ui/sonner";
+import { supabase } from "../integrations/supabase/client";
 
 export interface HistoryItem {
   id: string;

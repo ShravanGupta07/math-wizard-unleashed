@@ -1,18 +1,19 @@
-
 import React, { useState, useEffect } from "react";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Skeleton } from "@/components/ui/skeleton";
-import { useHistory } from "@/contexts/HistoryContext";
-import { useAuth } from "@/contexts/AuthContext";
-import { MathProblem, MathSolution } from "@/lib/groq-api";
+import { Button } from "./ui/button";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "./ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
+import { Skeleton } from "./ui/skeleton";
+import { useHistory } from "../contexts/HistoryContext";
+import { useAuth } from "../contexts/AuthContext";
+import { MathProblem, MathSolution } from "../lib/groq-api";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ScatterChart, Scatter, AreaChart, Area } from "recharts";
-import { Clock, Copy, Download, ThumbsUp, Info, BookOpen, ChevronRight, Lightbulb } from "lucide-react";
-import { toast } from "@/components/ui/sonner";
-import { supabase } from "@/integrations/supabase/client";
+import { Clock, Copy, Download, ThumbsUp, Info, BookOpen, ChevronRight, Lightbulb, FileText } from "lucide-react";
+import { toast } from "./ui/sonner";
+import { supabase } from "../integrations/supabase/client";
 import Katex from "katex";
 import "katex/dist/katex.min.css";
+import { jsPDF } from "jspdf";
+import html2canvas from "html2canvas";
 
 // Enhanced rendering component for math solutions with LaTeX support
 const FormattedMath = ({ text, className = "" }: { text: string, className?: string }) => {
@@ -264,6 +265,101 @@ const MathOutput: React.FC<MathOutputProps> = ({ problem, solution, loading }) =
     }
   };
   
+  // Function to generate PDF
+  const generatePDF = async () => {
+    if (!solution || !problem) return;
+
+    try {
+      toast.info("Generating PDF...");
+      
+      // Create a temporary div for PDF content
+      const pdfContent = document.createElement('div');
+      pdfContent.className = 'pdf-content';
+      pdfContent.innerHTML = `
+        <div style="padding: 20px; font-family: Arial, sans-serif;">
+          <h1 style="color: #333; margin-bottom: 20px;">Math Solution</h1>
+          
+          <div style="margin-bottom: 20px;">
+            <h2 style="color: #666;">Problem:</h2>
+            <p>${problem.problem}</p>
+          </div>
+
+          <div style="margin-bottom: 20px;">
+            <h2 style="color: #666;">Solution:</h2>
+            <div>${solution.solution}</div>
+          </div>
+
+          ${solution.explanation ? `
+            <div style="margin-bottom: 20px;">
+              <h2 style="color: #666;">Explanation:</h2>
+              <p>${solution.explanation}</p>
+            </div>
+          ` : ''}
+
+          ${solution.steps ? `
+            <div style="margin-bottom: 20px;">
+              <h2 style="color: #666;">Steps:</h2>
+              <ol>
+                ${solution.steps.map(step => `<li>${step}</li>`).join('')}
+              </ol>
+            </div>
+          ` : ''}
+        </div>
+      `;
+
+      document.body.appendChild(pdfContent);
+
+      // Convert the content to PDF
+      const canvas = await html2canvas(pdfContent, {
+        scale: 2,
+        useCORS: true,
+        logging: false,
+        allowTaint: true,
+        backgroundColor: '#ffffff',
+        windowWidth: pdfContent.scrollWidth,
+        windowHeight: pdfContent.scrollHeight
+      } as any);
+
+      document.body.removeChild(pdfContent);
+
+      const imgData = canvas.toDataURL('image/png');
+      const pdf = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: 'a4'
+      });
+
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = pdf.internal.pageSize.getHeight();
+      const imgWidth = canvas.width;
+      const imgHeight = canvas.height;
+      const ratio = Math.min(pdfWidth / imgWidth, pdfHeight / imgHeight);
+      const imgX = (pdfWidth - imgWidth * ratio) / 2;
+      const imgY = 30;
+
+      // Add header
+      pdf.setFontSize(20);
+      pdf.setTextColor(44, 62, 80);
+      pdf.text('Math Wizard Solution', pdfWidth / 2, 20, { align: 'center' });
+
+      // Add content
+      pdf.addImage(imgData, 'PNG', imgX, imgY, imgWidth * ratio, imgHeight * ratio);
+
+      // Add footer
+      pdf.setFontSize(10);
+      pdf.setTextColor(127, 140, 141);
+      const today = new Date().toLocaleDateString();
+      pdf.text(`Generated on ${today}`, pdfWidth - 20, pdfHeight - 10, { align: 'right' });
+
+      // Save the PDF
+      pdf.save('math-solution.pdf');
+      toast.success("PDF generated successfully!");
+    } catch (error) {
+      console.error('Error generating PDF:', error);
+      toast.error("Failed to generate PDF. Please try again.");
+    }
+  };
+  
   if (!problem && !loading) {
     return (
       <Card className="w-full max-w-3xl mx-auto bg-muted/30">
@@ -308,170 +404,115 @@ const MathOutput: React.FC<MathOutputProps> = ({ problem, solution, loading }) =
   if (!solution) return null;
   
   return (
-    <Card className="w-full max-w-3xl mx-auto">
-      <CardHeader>
-        <CardTitle className="flex justify-between items-start">
-          <div className="flex flex-col">
-            <span>Solution</span>
-            {solution.topic && (
-              <span className="text-xs font-normal text-muted-foreground mt-1">
-                Topic: {solution.topic}
-              </span>
-            )}
-          </div>
-          <span className="text-xs bg-primary/10 text-primary px-2 py-1 rounded-full flex items-center">
-            <Clock className="h-3 w-3 mr-1" />
-            Just now
-          </span>
-        </CardTitle>
-        <CardDescription>
-          {problem?.problem}
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="p-0">
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="w-full grid grid-cols-3 rounded-none border-b">
-            <TabsTrigger value="solution">Solution</TabsTrigger>
-            <TabsTrigger value="explanation">Step-by-Step</TabsTrigger>
-            <TabsTrigger value="hints" disabled={!solution.hints || solution.hints.length === 0}>
-              Hints
-            </TabsTrigger>
-          </TabsList>
-          
-          <TabsContent value="solution" className="p-6">
-            <div className="prose prose-sm max-w-none space-y-4">
-              <div className="text-lg font-medium mb-4">
-                <FormattedMath text={solution.solution} />
-              </div>
-              
-              {graphData && (
-                <div className="graph-container mt-6">
-                  <h3 className="text-sm font-medium mb-2">Graph Visualization</h3>
-                  <div className="h-[300px] w-full overflow-auto">
-                    <ResponsiveContainer width="100%" height="100%" minWidth={600}>
-                      {renderChart()}
-                    </ResponsiveContainer>
-                  </div>
-                  <div className="flex justify-end mt-2 space-x-2">
-                    <Button 
-                      variant="outline" 
-                      size="sm"
-                      onClick={() => setChartType('line')}
-                      className={chartType === 'line' ? 'bg-muted' : ''}
-                    >
-                      Line
-                    </Button>
-                    <Button 
-                      variant="outline" 
-                      size="sm"
-                      onClick={() => setChartType('scatter')}
-                      className={chartType === 'scatter' ? 'bg-muted' : ''}
-                    >
-                      Scatter
-                    </Button>
-                    <Button 
-                      variant="outline" 
-                      size="sm"
-                      onClick={() => setChartType('area')}
-                      className={chartType === 'area' ? 'bg-muted' : ''}
-                    >
-                      Area
-                    </Button>
-                  </div>
-                </div>
-              )}
+    <div className="w-full space-y-4">
+      <Card>
+        <CardContent className="p-6">
+          {loading ? (
+            <div className="space-y-4">
+              <Skeleton className="h-6 w-3/4" />
+              <Skeleton className="h-24 w-full" />
+              <Skeleton className="h-6 w-1/2" />
             </div>
-          </TabsContent>
-          
-          <TabsContent value="explanation" className="p-6">
-            <div className="prose prose-sm max-w-none">
-              {solution && (
-                <ol className="list-decimal pl-5 space-y-3">
-                  {formatSolutionSteps(solution).map((step, index) => (
-                    <li key={index} className="text-base">
-                      <FormattedMath text={step} />
-                    </li>
-                  ))}
-                </ol>
-              )}
-            </div>
-          </TabsContent>
-          
-          <TabsContent value="hints" className="p-6">
-            <div className="prose prose-sm max-w-none">
-              {solution.hints && solution.hints.length > 0 ? (
-                <div className="space-y-4">
-                  <div className="flex items-center gap-2 text-amber-600 mb-4">
-                    <Lightbulb className="h-5 w-5" />
-                    <p className="font-medium">Need some guidance without the full answer?</p>
-                  </div>
-                  
-                  <div className="space-y-3">
-                    {solution.hints.slice(0, visibleHints).map((hint, index) => (
-                      <div 
-                        key={index} 
-                        className="p-3 bg-amber-50 border border-amber-200 rounded-md"
-                      >
-                        <p className="font-medium text-amber-800 mb-1">Hint {index + 1}:</p>
-                        <FormattedMath text={hint} />
-                      </div>
-                    ))}
-                  </div>
-                  
-                  {visibleHints < solution.hints.length && (
-                    <Button 
-                      onClick={showNextHint} 
-                      className="mt-4 w-full"
-                      variant="outline"
-                    >
-                      <Lightbulb className="h-4 w-4 mr-2" />
-                      Show Next Hint ({visibleHints + 1} of {solution.hints.length})
-                    </Button>
-                  )}
-                  
-                  {visibleHints === solution.hints.length && (
-                    <div className="p-3 bg-muted rounded-md mt-4 text-center">
-                      <p className="text-sm text-muted-foreground">
-                        You've seen all available hints. Check the solution for the complete answer.
-                      </p>
-                      <Button 
-                        variant="link" 
-                        onClick={() => setActiveTab('solution')}
-                        className="mt-2"
-                      >
-                        View full solution <ChevronRight className="h-3 w-3 ml-1" />
-                      </Button>
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <div className="text-center py-8">
-                  <Info className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
-                  <h3 className="text-lg font-medium mb-2">No Hints Available</h3>
-                  <p className="text-muted-foreground mb-4">
-                    Hints aren't available for this problem. Check the step-by-step solution instead.
-                  </p>
-                  <Button variant="outline" onClick={() => setActiveTab('explanation')}>
-                    <BookOpen className="h-4 w-4 mr-2" />
-                    View Step-by-Step
+          ) : solution ? (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="text-lg font-medium">Solution:</div>
+                <div className="flex items-center gap-2">
+                  <Button variant="outline" size="sm" onClick={handleCopy}>
+                    <Copy className="h-4 w-4 mr-2" />
+                    Copy
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={handleDownload}>
+                    <Download className="h-4 w-4 mr-2" />
+                    Download
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={generatePDF}>
+                    <FileText className="h-4 w-4 mr-2" />
+                    Save as PDF
                   </Button>
                 </div>
+              </div>
+
+              <div className="text-lg">
+                <FormattedMath text={solution.latex || solution.solution} />
+              </div>
+              
+              {solution.explanation && (
+                <div className="mt-4">
+                  <div className="text-sm text-muted-foreground mb-2">Explanation:</div>
+                  <div className="text-base">{solution.explanation}</div>
+                </div>
+              )}
+
+              {solution.steps && solution.steps.length > 0 && (
+                <div className="mt-4">
+                  <div className="text-sm text-muted-foreground mb-2">Steps:</div>
+                  <ol className="list-decimal list-inside space-y-2">
+                    {formatSolutionSteps(solution).map((step, index) => (
+                      <li key={index} className="text-base">{step}</li>
+                    ))}
+                  </ol>
+                </div>
+              )}
+
+              {solution.hints && solution.hints.length > 0 && (
+                <div className="mt-4">
+                  <div className="text-sm text-muted-foreground mb-2">Hints:</div>
+                  <ul className="list-disc list-inside space-y-2">
+                    {solution.hints.map((hint, index) => (
+                      <li key={index} className="text-base">{hint}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {solution.visualization && (
+                <div className="mt-4">
+                  <div className="text-sm text-muted-foreground mb-2">Visualization:</div>
+                  <div className="bg-muted rounded-lg p-4">
+                    <div className="h-[300px] w-full overflow-auto">
+                      <ResponsiveContainer width="100%" height="100%" minWidth={600}>
+                        {renderChart()}
+                      </ResponsiveContainer>
+                    </div>
+                    <div className="flex justify-end mt-2 space-x-2">
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => setChartType('line')}
+                        className={chartType === 'line' ? 'bg-muted' : ''}
+                      >
+                        Line
+                      </Button>
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => setChartType('scatter')}
+                        className={chartType === 'scatter' ? 'bg-muted' : ''}
+                      >
+                        Scatter
+                      </Button>
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => setChartType('area')}
+                        className={chartType === 'area' ? 'bg-muted' : ''}
+                      >
+                        Area
+                      </Button>
+                    </div>
+                  </div>
+                </div>
               )}
             </div>
-          </TabsContent>
-        </Tabs>
-      </CardContent>
-      <CardFooter className="flex justify-end space-x-2 p-4 bg-muted/10 border-t">
-        <Button variant="outline" size="sm" onClick={handleCopy}>
-          <Copy className="h-4 w-4 mr-2" />
-          Copy
-        </Button>
-        <Button variant="outline" size="sm" onClick={handleDownload}>
-          <Download className="h-4 w-4 mr-2" />
-          Download
-        </Button>
-      </CardFooter>
-    </Card>
+          ) : (
+            <div className="text-center text-muted-foreground">
+              No solution available
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
   );
 };
 
