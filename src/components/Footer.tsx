@@ -85,9 +85,7 @@ const Footer = () => {
               </div>
               
               <div className="rounded-xl bg-background/50 dark:bg-background/40 backdrop-blur-sm shadow-sm p-6 flex flex-col items-start group transition-all hover:bg-background/70 dark:hover:bg-background/60">
-                
                 <ul className="space-y-2 w-full">
-                 
                 </ul>
               </div>
             </div>
