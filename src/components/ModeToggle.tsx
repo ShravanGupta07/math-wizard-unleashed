@@ -1,32 +1,26 @@
 import { Moon, Sun } from "lucide-react";
 import { Button } from "./ui/button";
+import { useTheme } from "next-themes";
 import { useEffect, useState } from "react";
 
 export function ModeToggle() {
-  const [theme, setTheme] = useState<"light" | "dark">("light");
+  const { setTheme, resolvedTheme } = useTheme();
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    // Check if user has theme preference stored
-    const storedTheme = localStorage.getItem("theme");
-    const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-    
-    // Set initial theme based on stored preference or system preference
-    const initialTheme = storedTheme ? storedTheme as "light" | "dark" : prefersDark ? "dark" : "light";
-    setTheme(initialTheme);
-    document.documentElement.classList.toggle("dark", initialTheme === "dark");
+    setMounted(true);
   }, []);
 
+  if (!mounted) return null;
+
   const toggleTheme = () => {
-    const newTheme = theme === "light" ? "dark" : "light";
-    setTheme(newTheme);
-    document.documentElement.classList.toggle("dark", newTheme === "dark");
-    localStorage.setItem("theme", newTheme);
+    setTheme(resolvedTheme === "dark" ? "light" : "dark");
   };
 
   return (
-    <Button 
-      variant="outline" 
-      size="icon" 
+    <Button
+      variant="outline"
+      size="icon"
       onClick={toggleTheme}
       className="rounded-full"
     >

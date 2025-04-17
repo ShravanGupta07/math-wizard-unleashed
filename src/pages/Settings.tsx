@@ -1,18 +1,29 @@
-
 import { useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
+import { useHistory } from "@/contexts/HistoryContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
-import { AlertCircle, Lock } from "lucide-react";
+import { AlertCircle, Lock, Download, Camera, Mail, User } from "lucide-react";
 import { toast } from "@/components/ui/sonner";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 
 const Settings = () => {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user, signOut, updatePassword, deleteAccount, unlinkGoogle, updateProfile } = useAuth();
+  const { history } = useHistory();
+  const navigate = useNavigate();
   const [settings, setSettings] = useState({
     notifications: true,
     emailUpdates: false,
@@ -22,16 +33,143 @@ const Settings = () => {
     visualizations: true,
     latexOutput: true,
   });
+
+  // Password change state
+  const [isPasswordDialogOpen, setIsPasswordDialogOpen] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+
+  // Delete account state
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState("");
+
+  // Profile edit state
+  const [editingProfile, setEditingProfile] = useState(false);
+  const [profileName, setProfileName] = useState(user?.name || "");
+  const [profileEmail, setProfileEmail] = useState(user?.email || "");
+  const [profilePhoto, setProfilePhoto] = useState(user?.photoURL || "");
+
+  const handleToggleSetting = async (key: keyof typeof settings) => {
+    try {
+      setSettings({
+        ...settings,
+        [key]: !settings[key],
+      });
+      
+      // If it's the autoSave setting, we might want to persist this to the user's preferences
+      if (key === "autoSave") {
+        // Here you would typically save this to your backend
+        // await updateUserPreferences({ autoSave: !settings.autoSave });
+      }
+      
+      toast.success("Setting updated", {
+        description: `${key} has been ${settings[key] ? "disabled" : "enabled"}.`
+      });
+    } catch (error) {
+      toast.error("Failed to update setting");
+      // Revert the setting if the update failed
+      setSettings(prev => ({
+        ...prev,
+        [key]: !prev[key],
+      }));
+    }
+  };
+
+  const handleChangePassword = async () => {
+    try {
+      if (newPassword !== confirmPassword) {
+        toast.error("New passwords don't match");
+        return;
+      }
+
+      if (newPassword.length < 6) {
+        toast.error("Password must be at least 6 characters");
+        return;
+      }
+
+      await updatePassword(currentPassword, newPassword);
+      setIsPasswordDialogOpen(false);
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+      toast.success("Password updated successfully");
+    } catch (error) {
+      toast.error("Failed to update password");
+    }
+  };
+
+  const handleDisconnectGoogle = async () => {
+    try {
+      await unlinkGoogle();
+      toast.success("Google account disconnected");
+    } catch (error) {
+      toast.error("Failed to disconnect Google account");
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    try {
+      if (confirmDelete !== "DELETE") {
+        toast.error("Please type DELETE to confirm");
+        return;
+      }
+
+      await deleteAccount();
+      await signOut();
+      navigate("/");
+      toast.success("Account deleted successfully");
+    } catch (error) {
+      toast.error("Failed to delete account");
+    }
+  };
   
-  const handleToggleSetting = (key: keyof typeof settings) => {
-    setSettings({
-      ...settings,
-      [key]: !settings[key],
-    });
-    
-    toast.success("Setting updated", {
-      description: `${key} has been ${settings[key] ? "disabled" : "enabled"}.`
-    });
+  const handleDownloadData = () => {
+    try {
+      // Create a data object with user's information and history
+      const userData = {
+        user: {
+          name: user?.name,
+          email: user?.email,
+          settings: settings
+        },
+        history: history
+      };
+
+      // Convert to JSON string
+      const jsonString = JSON.stringify(userData, null, 2);
+      
+      // Create blob and download link
+      const blob = new Blob([jsonString], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'math-wizard-data.json';
+      document.body.appendChild(a);
+      a.click();
+      
+      // Cleanup
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      toast.success("Data downloaded successfully");
+    } catch (error) {
+      console.error('Error downloading data:', error);
+      toast.error("Failed to download data");
+    }
+  };
+
+  const handleUpdateProfile = async () => {
+    try {
+      await updateProfile({
+        name: profileName !== user?.name ? profileName : undefined,
+        email: profileEmail !== user?.email ? profileEmail : undefined,
+        photoURL: profilePhoto !== user?.photoURL ? profilePhoto : undefined
+      });
+      setEditingProfile(false);
+    } catch (error) {
+      // Error is handled by updateProfile
+    }
   };
   
   if (!isAuthenticated) {
@@ -63,12 +201,105 @@ const Settings = () => {
           </p>
         </div>
         
-        <Tabs defaultValue="preferences" className="w-full">
-          <TabsList className="grid w-full grid-cols-3">
+        <Tabs defaultValue="profile" className="w-full">
+          <TabsList className="grid w-full grid-cols-4">
+            <TabsTrigger value="profile">Profile</TabsTrigger>
             <TabsTrigger value="preferences">Preferences</TabsTrigger>
             <TabsTrigger value="account">Account</TabsTrigger>
             <TabsTrigger value="privacy">Privacy</TabsTrigger>
           </TabsList>
+          
+          <TabsContent value="profile" className="mt-6 space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle>Profile Information</CardTitle>
+                <CardDescription>Update your personal information</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="space-y-4">
+                  <div className="flex justify-between items-start">
+                    <div className="flex items-center space-x-4">
+                      <div className="w-20 h-20 rounded-full overflow-hidden bg-muted flex items-center justify-center">
+                        {user?.photoURL ? (
+                          <img 
+                            src={user.photoURL} 
+                            alt={user.name || "Profile"} 
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <User className="w-10 h-10 text-muted-foreground" />
+                        )}
+                      </div>
+                      <div className="space-y-1">
+                        <h3 className="font-medium text-lg">{user?.name}</h3>
+                        <p className="text-sm text-muted-foreground">{user?.email}</p>
+                      </div>
+                    </div>
+                    <Button 
+                      variant="outline" 
+                      onClick={() => setEditingProfile(!editingProfile)}
+                    >
+                      {editingProfile ? "Cancel" : "Edit Profile"}
+                    </Button>
+                  </div>
+
+                  {editingProfile && (
+                    <div className="space-y-4 pt-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="name">Name</Label>
+                        <div className="flex gap-2">
+                          <User className="w-4 h-4 mt-3 text-muted-foreground" />
+                          <Input
+                            id="name"
+                            value={profileName}
+                            onChange={(e) => setProfileName(e.target.value)}
+                            placeholder="Your name"
+                            className="flex-1"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="email">Email</Label>
+                        <div className="flex gap-2">
+                          <Mail className="w-4 h-4 mt-3 text-muted-foreground" />
+                          <Input
+                            id="email"
+                            type="email"
+                            value={profileEmail}
+                            onChange={(e) => setProfileEmail(e.target.value)}
+                            placeholder="Your email"
+                            className="flex-1"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="photo">Profile Photo URL</Label>
+                        <div className="flex gap-2">
+                          <Camera className="w-4 h-4 mt-3 text-muted-foreground" />
+                          <Input
+                            id="photo"
+                            value={profilePhoto}
+                            onChange={(e) => setProfilePhoto(e.target.value)}
+                            placeholder="https://example.com/photo.jpg"
+                            className="flex-1"
+                          />
+                        </div>
+                      </div>
+
+                      <Button 
+                        className="w-full mt-4" 
+                        onClick={handleUpdateProfile}
+                      >
+                        Save Changes
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
           
           <TabsContent value="preferences" className="mt-6 space-y-4">
             <Card>
@@ -163,7 +394,13 @@ const Settings = () => {
                     <span className="text-sm text-muted-foreground">
                       Last updated 30 days ago
                     </span>
-                    <Button variant="outline" size="sm">Change Password</Button>
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => setIsPasswordDialogOpen(true)}
+                    >
+                      Change Password
+                    </Button>
                   </div>
                 </div>
                 <Separator />
@@ -191,7 +428,13 @@ const Settings = () => {
                       </svg>
                       <span className="text-sm">Google</span>
                     </div>
-                    <Button variant="ghost" size="sm">Disconnect</Button>
+                    <Button 
+                      variant="ghost" 
+                      size="sm"
+                      onClick={handleDisconnectGoogle}
+                    >
+                      Disconnect
+                    </Button>
                   </div>
                 </div>
               </CardContent>
@@ -205,7 +448,12 @@ const Settings = () => {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <Button variant="destructive">Delete Account</Button>
+                <Button 
+                  variant="destructive"
+                  onClick={() => setIsDeleteDialogOpen(true)}
+                >
+                  Delete Account
+                </Button>
                 <p className="text-sm text-muted-foreground mt-2">
                   This will permanently delete your account and all associated data.
                 </p>
@@ -254,11 +502,17 @@ const Settings = () => {
                     <div className="bg-muted/30 p-4 rounded-lg flex items-start gap-3">
                       <AlertCircle className="h-5 w-5 text-muted-foreground flex-shrink-0 mt-0.5" />
                       <p className="text-sm text-muted-foreground">
-                        Your math problems are processed using GROQ's API. No data is stored on our servers beyond 
+                        Your math problems are processed. No data is stored on our servers beyond 
                         your solution history. You can delete your history at any time from your account.
                       </p>
                     </div>
-                    <Button variant="outline" size="sm" className="w-fit">
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      className="w-fit"
+                      onClick={handleDownloadData}
+                    >
+                      <Download className="h-4 w-4 mr-2" />
                       Download My Data
                     </Button>
                   </div>
@@ -268,6 +522,85 @@ const Settings = () => {
           </TabsContent>
         </Tabs>
       </div>
+
+      {/* Password Change Dialog */}
+      <Dialog open={isPasswordDialogOpen} onOpenChange={setIsPasswordDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Change Password</DialogTitle>
+            <DialogDescription>
+              Enter your current password and choose a new one.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="current">Current Password</Label>
+              <Input
+                id="current"
+                type="password"
+                value={currentPassword}
+                onChange={(e) => setCurrentPassword(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="new">New Password</Label>
+              <Input
+                id="new"
+                type="password"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="confirm">Confirm New Password</Label>
+              <Input
+                id="confirm"
+                type="password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsPasswordDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleChangePassword}>
+              Update Password
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Account Dialog */}
+      <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Account</DialogTitle>
+            <DialogDescription>
+              This action cannot be undone. This will permanently delete your account and remove your data from our servers.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <p className="text-sm text-muted-foreground">
+              Please type "DELETE" to confirm:
+            </p>
+            <Input
+              value={confirmDelete}
+              onChange={(e) => setConfirmDelete(e.target.value)}
+              placeholder="Type DELETE to confirm"
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsDeleteDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={handleDeleteAccount}>
+              Delete Account
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

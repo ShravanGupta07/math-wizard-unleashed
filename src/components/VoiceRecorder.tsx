@@ -284,45 +284,48 @@ const VoiceRecorder: React.FC<VoiceRecorderProps> = ({ onRecordingComplete }) =>
                   </div>
                 </div>
               ) : (
-                <>
-                  {audioUrl ? (
-                    <div className="flex flex-col items-center justify-center w-full">
-                      <audio 
-                        src={audioUrl} 
-                        controls 
-                        className="w-full max-w-[300px] mb-4" 
-                      />
-                      <p className="text-sm text-muted-foreground mb-4">
-                        {processingAudio ? "Processing your recording..." : "Review your recording or start a new one"}
-                      </p>
-                      <div className="flex flex-wrap gap-3 justify-center">
-                        <Button onClick={startRecording} variant="outline">
-                          <Mic className="h-4 w-4 mr-2" /> Record Again
+                <div className="flex flex-col items-center justify-center w-full">
+                  <div className="relative w-full max-w-md">
+                    <div className="aspect-square w-full rounded-full bg-gradient-to-br from-primary/10 to-primary/5 flex items-center justify-center">
+                      {isRecording ? (
+                        <div className="w-24 h-24 rounded-full bg-destructive/10 flex items-center justify-center">
+                          <div className="w-16 h-16 rounded-full bg-destructive animate-pulse flex items-center justify-center">
+                            <Mic className="h-8 w-8 text-white" />
+                          </div>
+                        </div>
+                      ) : (
+                        <Button
+                          size="lg"
+                          className="w-24 h-24 rounded-full bg-primary hover:bg-primary/90 transition-all duration-300"
+                          onClick={startRecording}
+                          disabled={processingAudio}
+                        >
+                          <Mic className="h-8 w-8" />
                         </Button>
+                      )}
+                    </div>
+                    {isRecording && (
+                      <div className="absolute -bottom-8 left-1/2 transform -translate-x-1/2 text-sm text-muted-foreground">
+                        {formatTime(recordingTime)}
                       </div>
-                    </div>
-                  ) : (
-                    <div className="flex flex-col items-center justify-center">
-                      <Button 
-                        variant="outline" 
-                        size="lg" 
-                        className="h-20 w-20 rounded-full border-dashed"
-                        onClick={startRecording}
+                    )}
+                    {audioUrl && !showConfirmation && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="absolute top-2 right-2 h-8 w-8"
+                        onClick={() => {
+                          setAudioUrl(null);
+                          setAudioBlob(null);
+                          setTranscription("");
+                          setLatexExpression("");
+                        }}
                       >
-                        <Mic className="h-10 w-10 text-primary" />
+                        <X className="h-4 w-4" />
                       </Button>
-                      <p className="mt-4 text-sm text-center max-w-[300px] text-muted-foreground">
-                        Press the button and speak your math problem clearly
-                      </p>
-                      <ul className="text-xs text-muted-foreground mt-3 space-y-1 list-disc list-inside max-w-[300px]">
-                        <li>Say "equals" instead of "equals sign"</li>
-                        <li>Say "x squared" rather than "x to the power of 2"</li>
-                        <li>Speak at a moderate pace with clear pronunciation</li>
-                        <li>Use mathematical terms like "integral of" or "square root of"</li>
-                      </ul>
-                    </div>
-                  )}
-                </>
+                    )}
+                  </div>
+                </div>
               )}
             </>
           )}

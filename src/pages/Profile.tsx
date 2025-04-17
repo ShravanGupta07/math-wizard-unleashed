@@ -265,10 +265,10 @@ const Profile = () => {
                       <div className={`mt-0.5 mr-2 ${user?.isPremium ? "text-primary" : "text-muted-foreground opacity-50"}`}>
                         <Check className="h-4 w-4" />
                       </div>
-                      <div className={user?.isPremium ? "" : "opacity-50"}>
-                        <p className="font-medium">Voice & Drawing Input</p>
+                      <div>
+                        <p className="font-medium">Latex Output</p>
                         <p className="text-sm text-muted-foreground">
-                          Speak or draw your problems (Coming Soon)
+                          Latex output for your solutions
                         </p>
                       </div>
                     </div>
@@ -276,7 +276,7 @@ const Profile = () => {
                       <div className={`mt-0.5 mr-2 ${user?.isPremium ? "text-primary" : "text-muted-foreground opacity-50"}`}>
                         <Check className="h-4 w-4" />
                       </div>
-                      <div className={user?.isPremium ? "" : "opacity-50"}>
+                      <div>
                         <p className="font-medium">Unlimited History</p>
                         <p className="text-sm text-muted-foreground">
                           Save unlimited solutions in your history
@@ -286,21 +286,9 @@ const Profile = () => {
                   </div>
                 </div>
                 
-                {!user?.isPremium && (
-                  <div className="flex justify-center">
-                    <Button>
-                      Upgrade to Premium
-                    </Button>
-                  </div>
-                )}
                 
-                <div className="bg-muted/30 p-4 rounded-lg flex items-start gap-3">
-                  <AlertCircle className="h-5 w-5 text-muted-foreground flex-shrink-0 mt-0.5" />
-                  <p className="text-sm text-muted-foreground">
-                    This is a demo application. In a real application, you would be able to upgrade to a premium 
-                    plan with payment processing.
-                  </p>
-                </div>
+                
+                
               </CardContent>
             </Card>
           </TabsContent>

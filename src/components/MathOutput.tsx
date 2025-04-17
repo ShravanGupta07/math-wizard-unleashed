@@ -6,6 +6,7 @@ import { Skeleton } from "./ui/skeleton";
 import { useHistory } from "../contexts/HistoryContext";
 import { useAuth } from "../contexts/AuthContext";
 import { MathProblem, MathSolution } from "../lib/groq-api";
+import { InputType, ToolType } from "../types/history";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ScatterChart, Scatter, AreaChart, Area } from "recharts";
 import { Clock, Copy, Download, ThumbsUp, Info, BookOpen, ChevronRight, Lightbulb, FileText } from "lucide-react";
 import { toast } from "./ui/sonner";
@@ -14,6 +15,7 @@ import Katex from "katex";
 import "katex/dist/katex.min.css";
 import { jsPDF } from "jspdf";
 import html2canvas from "html2canvas";
+import { motion, AnimatePresence } from "framer-motion";
 
 // Enhanced rendering component for math solutions with LaTeX support
 const FormattedMath = ({ text, className = "" }: { text: string, className?: string }) => {
@@ -101,7 +103,13 @@ const MathOutput: React.FC<MathOutputProps> = ({ problem, solution, loading }) =
   // Fix the infinite loop by adding solutionSaved to prevent multiple saves
   useEffect(() => {
     if (solution && !loading && problem && !solutionSaved) {
-      addToHistory(problem, solution);
+      addToHistory(
+        problem.type as InputType || 'text',
+        'solver' as ToolType,
+        problem.problem,
+        solution.solution,
+        solution.topic
+      );
       setSolutionSaved(true);
       
       // Save solution to Supabase if user is authenticated
@@ -147,20 +155,22 @@ const MathOutput: React.FC<MathOutputProps> = ({ problem, solution, loading }) =
   // Save solution to Supabase
   const saveSolutionToSupabase = async (problem: MathProblem, solution: MathSolution) => {
     try {
+      const historyData = {
+        user_id: user?.id || '',
+        problem: problem.problem,
+        problem_type: problem.type || 'text',
+        solution: solution.solution,
+        steps: solution.steps || [],
+        explanation: solution.explanation || null,
+        topic: solution.topic || 'General Mathematics',
+        visualization: solution.visualization || solution.plotData || null,
+        latex: typeof problem.content === 'string' ? problem.content : null,
+        created_at: new Date().toISOString()
+      };
+
       const { error } = await supabase
         .from('math_history')
-        .insert({
-          user_id: user?.id,
-          problem: problem.problem,
-          problem_type: problem.type,
-          solution: solution.solution,
-          explanation: solution.explanation,
-          latex: solution.latex,
-          steps: solution.steps || [],
-          topic: solution.topic || 'General Mathematics',
-          hints: solution.hints || [],
-          visualization: solution.visualization || solution.plotData || null
-        });
+        .insert(historyData);
         
       if (error) {
         console.error("Error saving solution to Supabase:", error);
@@ -178,19 +188,161 @@ const MathOutput: React.FC<MathOutputProps> = ({ problem, solution, loading }) =
     }
   }, [problem]);
   
-  // Format solution steps
+  const stepColors = [
+    'border-blue-400/80',
+    'border-purple-400/80',
+    'border-teal-400/80',
+    'border-pink-400/80',
+    'border-green-400/80',
+    'border-yellow-400/80',
+    'border-orange-400/80',
+  ];
+
   const formatSolutionSteps = (solution: MathSolution) => {
-    if (solution.steps && solution.steps.length > 0) {
-      return solution.steps;
-    }
-    
-    // Split by common step delimiters
-    const explanationSteps = solution.explanation
-      .split(/(\d+\.\s+|\n\n)/)
-      .filter(step => step.trim().length > 0 && !step.match(/^\d+\.\s*$/)) 
-      .map(step => step.trim());
-    
-    return explanationSteps.length > 0 ? explanationSteps : [solution.explanation];
+    if (!solution) return null;
+    const steps = solution.steps || [];
+    const explanation = solution.explanation || '';
+    const topic = solution.topic || 'General Mathematics';
+
+    return (
+      <div className="space-y-8">
+        {/* 🧩 Problem Statement */}
+        <motion.div
+          initial={{ opacity: 0, y: 32 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: 32 }}
+          transition={{ duration: 0.5, type: 'spring' }}
+          className="relative flex items-stretch bg-gradient-to-br from-orange-300/10 to-yellow-100/10 backdrop-blur-xl rounded-3xl shadow-xl border-l-8 border-orange-400/80 overflow-visible mb-2"
+        >
+          <div className="absolute -left-2 top-6 w-2 h-20 bg-orange-400/80 rounded-full blur-xl opacity-60 animate-pulse" />
+          <div className="flex-1 p-8 flex flex-col gap-2">
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-2xl">🧩</span>
+              <h3 className="text-lg font-bold tracking-tight">Problem Statement</h3>
+            </div>
+            <div className="text-base">
+              <FormattedMath text={problem?.problem || ''} />
+            </div>
+          </div>
+        </motion.div>
+
+        {/* 🔍 Step-by-Step Solution */}
+        <motion.div
+          initial={{ opacity: 0, y: 32 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: 32 }}
+          transition={{ delay: 0.1, duration: 0.5, type: 'spring' }}
+          className="space-y-4"
+        >
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-2xl">🔍</span>
+            <h3 className="text-lg font-bold tracking-tight">Step-by-Step Solution</h3>
+          </div>
+          <div className="flex flex-col gap-4">
+            {solution.steps && solution.steps.length > 0 ? solution.steps.map((step, index) => (
+              <motion.div
+                key={index}
+                initial={{ opacity: 0, x: 32 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -32 }}
+                transition={{ delay: 0.1 + index * 0.08, duration: 0.4, type: 'spring' }}
+                className={`relative group flex items-start gap-4 p-5 rounded-2xl bg-white/20 dark:bg-slate-800/40 border-l-8 shadow-xl hover:shadow-[0_0_24px] transition-all cursor-pointer hover:bg-blue-400/10 ${stepColors[index % stepColors.length]}`}
+              >
+                <span className={`flex items-center justify-center w-10 h-10 rounded-full text-white font-bold text-lg shadow-lg group-hover:scale-110 transition-transform ${stepColors[index % stepColors.length]}`}>{index + 1}</span>
+                <div className="flex-1 text-base font-mono bg-slate-900/10 rounded-lg px-4 py-2">
+                  <FormattedMath text={step} />
+                </div>
+              </motion.div>
+            )) : solution.explanation && (
+              <motion.div
+                initial={{ opacity: 0, x: 32 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -32 }}
+                transition={{ delay: 0.2, duration: 0.4, type: 'spring' }}
+                className="text-muted-foreground text-base"
+              >
+                {solution.explanation.split('\n').map((line, i) => (
+                  <div key={i} className="mb-1">
+                    <FormattedMath text={line} />
+                  </div>
+                ))}
+              </motion.div>
+            )}
+          </div>
+        </motion.div>
+
+        {/* 📚 Concept Used / Additional Info */}
+        <motion.div
+          initial={{ opacity: 0, y: 32 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: 32 }}
+          transition={{ delay: 0.2, duration: 0.5, type: 'spring' }}
+          className="relative flex items-stretch bg-gradient-to-br from-slate-900/80 to-slate-800/60 rounded-3xl shadow-xl border border-slate-400/30 overflow-hidden hover:scale-[1.025] hover:shadow-2xl transition-transform group"
+        >
+          <div className="flex-1 p-8 flex flex-col gap-2">
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-xl">ℹ️</span>
+              <h3 className="text-base font-semibold tracking-tight">Concept Used / Additional Info</h3>
+            </div>
+            {solution && (
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <span className="mr-1">📘</span>
+                  <span className="font-medium">{getConceptInfo(solution).mainConcept}</span>
+                </div>
+                <div className="space-y-1">
+                  {getConceptInfo(solution).keyPoints.map((point, i) => (
+                    <div key={i} className="flex items-center gap-2 text-sm text-slate-300">
+                      <span className="mr-1">•</span>
+                      <span>{point}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </motion.div>
+
+        {/* ✅ Final Answer Section */}
+        <motion.div
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          exit={{ opacity: 0, scale: 0.95 }}
+          transition={{ delay: 0.3, duration: 0.6, type: 'spring' }}
+          className="relative flex items-center justify-center mt-6"
+        >
+          <div className="relative w-full flex justify-center">
+            <div className="relative z-10 flex flex-col items-center w-full">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-2xl">✅</span>
+                <h3 className="text-lg font-bold tracking-tight">Final Answer</h3>
+              </div>
+              {renderFinalAnswer(solution)}
+            </div>
+          </div>
+        </motion.div>
+
+        {/* Graph if available */}
+        {graphData && (
+          <motion.div
+            initial={{ opacity: 0, y: 32 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 32 }}
+            transition={{ delay: 0.4, duration: 0.5, type: 'spring' }}
+            className="bg-gradient-to-br from-blue-500/10 to-purple-500/10 backdrop-blur-xl rounded-3xl shadow-xl p-6 mt-8"
+          >
+            <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+              <span>📊</span> Visualization
+            </h3>
+            <div className="w-full overflow-x-auto">
+              <div className="min-w-[600px]">
+                {renderChart()}
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </div>
+    );
   };
 
   const handleCopy = () => {
@@ -267,92 +419,116 @@ const MathOutput: React.FC<MathOutputProps> = ({ problem, solution, loading }) =
   
   // Function to generate PDF
   const generatePDF = async () => {
-    if (!solution || !problem) return;
-
     try {
       toast.info("Generating PDF...");
       
-      // Create a temporary div for PDF content
-      const pdfContent = document.createElement('div');
-      pdfContent.className = 'pdf-content';
-      pdfContent.innerHTML = `
-        <div style="padding: 20px; font-family: Arial, sans-serif;">
-          <h1 style="color: #333; margin-bottom: 20px;">Math Solution</h1>
-          
-          <div style="margin-bottom: 20px;">
-            <h2 style="color: #666;">Problem:</h2>
-            <p>${problem.problem}</p>
-          </div>
-
-          <div style="margin-bottom: 20px;">
-            <h2 style="color: #666;">Solution:</h2>
-            <div>${solution.solution}</div>
-          </div>
-
-          ${solution.explanation ? `
-            <div style="margin-bottom: 20px;">
-              <h2 style="color: #666;">Explanation:</h2>
-              <p>${solution.explanation}</p>
-            </div>
-          ` : ''}
-
-          ${solution.steps ? `
-            <div style="margin-bottom: 20px;">
-              <h2 style="color: #666;">Steps:</h2>
-              <ol>
-                ${solution.steps.map(step => `<li>${step}</li>`).join('')}
-              </ol>
-            </div>
-          ` : ''}
-        </div>
-      `;
-
-      document.body.appendChild(pdfContent);
-
-      // Convert the content to PDF
-      const canvas = await html2canvas(pdfContent, {
-        scale: 2,
-        useCORS: true,
-        logging: false,
-        allowTaint: true,
-        backgroundColor: '#ffffff',
-        windowWidth: pdfContent.scrollWidth,
-        windowHeight: pdfContent.scrollHeight
-      } as any);
-
-      document.body.removeChild(pdfContent);
-
-      const imgData = canvas.toDataURL('image/png');
-      const pdf = new jsPDF({
-        orientation: 'portrait',
-        unit: 'mm',
-        format: 'a4'
-      });
-
+      // Initialize jsPDF
+      const pdf = new jsPDF();
       const pdfWidth = pdf.internal.pageSize.getWidth();
       const pdfHeight = pdf.internal.pageSize.getHeight();
-      const imgWidth = canvas.width;
-      const imgHeight = canvas.height;
-      const ratio = Math.min(pdfWidth / imgWidth, pdfHeight / imgHeight);
-      const imgX = (pdfWidth - imgWidth * ratio) / 2;
-      const imgY = 30;
+      
+      // Set up styling constants
+      const margin = 20;
+      const contentWidth = pdfWidth - (2 * margin);
+      let yPosition = margin;
+      
+      // Header with logo and title
+      pdf.setFillColor(76, 29, 149); // violet-800
+      pdf.rect(0, 0, pdfWidth, 40, 'F');
+      pdf.setTextColor(255, 255, 255);
+      pdf.setFontSize(24);
+      pdf.setFont('helvetica', 'bold');
+      pdf.text('MathsWizard Solution', margin, 28);
+      yPosition = 50;
 
-      // Add header
-      pdf.setFontSize(20);
-      pdf.setTextColor(44, 62, 80);
-      pdf.text('Math Wizard Solution', pdfWidth / 2, 20, { align: 'center' });
+      // Problem Statement Section
+      pdf.setFillColor(251, 146, 60, 0.1); // orange-400 with opacity
+      pdf.rect(margin - 5, yPosition - 5, contentWidth + 10, 40, 'F');
+      pdf.setDrawColor(251, 146, 60);
+      pdf.setLineWidth(0.5);
+      pdf.rect(margin - 5, yPosition - 5, contentWidth + 10, 40);
+      
+      pdf.setTextColor(0, 0, 0);
+      pdf.setFontSize(14);
+      pdf.setFont('helvetica', 'bold');
+      pdf.text('Problem Statement', margin, yPosition + 5);
+      
+      pdf.setFontSize(12);
+      pdf.setFont('helvetica', 'normal');
+      const problemText = problem?.problem || '';
+      const wrappedProblem = pdf.splitTextToSize(problemText, contentWidth);
+      pdf.text(wrappedProblem, margin, yPosition + 20);
+      yPosition += 50;
 
-      // Add content
-      pdf.addImage(imgData, 'PNG', imgX, imgY, imgWidth * ratio, imgHeight * ratio);
+      // Step-by-Step Solution Section
+      pdf.setFontSize(14);
+      pdf.setFont('helvetica', 'bold');
+      pdf.text('Step-by-Step Solution', margin, yPosition);
+      yPosition += 10;
 
-      // Add footer
+      if (solution?.steps && solution.steps.length > 0) {
+        solution.steps.forEach((step, index) => {
+          // Step circle with number
+          pdf.setFillColor(76, 29, 149); // violet-800
+          pdf.circle(margin + 10, yPosition + 5, 8, 'F');
+          pdf.setTextColor(255, 255, 255);
+          pdf.setFontSize(10);
+          pdf.text((index + 1).toString(), margin + 7, yPosition + 8);
+          
+          // Step content
+          pdf.setTextColor(0, 0, 0);
+          pdf.setFontSize(12);
+          const wrappedStep = pdf.splitTextToSize(step, contentWidth - 30);
+          pdf.text(wrappedStep, margin + 25, yPosition + 5);
+          
+          yPosition += (wrappedStep.length * 7) + 15;
+          
+          // Add new page if needed
+          if (yPosition > pdfHeight - margin) {
+            pdf.addPage();
+            yPosition = margin;
+          }
+        });
+      } else if (solution?.explanation) {
+        const wrappedExplanation = pdf.splitTextToSize(solution.explanation, contentWidth);
+        pdf.text(wrappedExplanation, margin, yPosition);
+        yPosition += (wrappedExplanation.length * 7) + 15;
+      }
+
+      // Final Answer Section
+      if (yPosition > pdfHeight - 60) {
+        pdf.addPage();
+        yPosition = margin;
+      }
+
+      pdf.setFillColor(139, 92, 246, 0.1); // violet-500 with opacity
+      pdf.rect(margin - 5, yPosition - 5, contentWidth + 10, 40, 'F');
+      pdf.setDrawColor(139, 92, 246);
+      pdf.setLineWidth(0.5);
+      pdf.rect(margin - 5, yPosition - 5, contentWidth + 10, 40);
+
+      pdf.setTextColor(0, 0, 0);
+      pdf.setFontSize(14);
+      pdf.setFont('helvetica', 'bold');
+      pdf.text('Final Answer', margin, yPosition + 5);
+
+      pdf.setFontSize(12);
+      pdf.setFont('helvetica', 'normal');
+      const finalAnswer = isTheoryQuestion(problem?.problem || '') 
+        ? formatTheoryAnswer(solution?.solution || '')
+        : solution?.solution || '';
+      const wrappedAnswer = pdf.splitTextToSize(finalAnswer, contentWidth);
+      pdf.text(wrappedAnswer, margin, yPosition + 20);
+
+      // Footer
       pdf.setFontSize(10);
       pdf.setTextColor(127, 140, 141);
       const today = new Date().toLocaleDateString();
-      pdf.text(`Generated on ${today}`, pdfWidth - 20, pdfHeight - 10, { align: 'right' });
+      pdf.text(`Generated by MathsWizard on ${today}`, margin, pdfHeight - 10);
+      pdf.text('www.mathswizard.com', pdfWidth - margin - 40, pdfHeight - 10);
 
       // Save the PDF
-      pdf.save('math-solution.pdf');
+      pdf.save('mathswizard-solution.pdf');
       toast.success("PDF generated successfully!");
     } catch (error) {
       console.error('Error generating PDF:', error);
@@ -360,157 +536,284 @@ const MathOutput: React.FC<MathOutputProps> = ({ problem, solution, loading }) =
     }
   };
   
-  if (!problem && !loading) {
-    return (
-      <Card className="w-full max-w-3xl mx-auto bg-muted/30">
-        <CardContent className="p-6 text-center">
-          <div className="py-8">
-            <div className="mx-auto w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mb-4">
-              <ThumbsUp className="h-8 w-8 text-primary" />
-            </div>
-            <h3 className="text-lg font-semibold mb-2">Ready to Solve</h3>
-            <p className="text-muted-foreground">
-              Enter your math problem above to get step-by-step solutions
-            </p>
+  const isTheoryQuestion = (text: string): boolean => {
+    // Check if the question is theory-based (starts with what, who, why, when, where, how)
+    const theoryKeywords = /^(what|who|why|when|where|how)\s/i;
+    return theoryKeywords.test(text.toLowerCase());
+  };
+
+  const formatTheoryAnswer = (solution: string): string => {
+    // Remove any LaTeX or special formatting
+    return solution
+      .replace(/A classic!\s*Here's the solution:\s*/i, '')
+      .replace(/【|】/g, '')
+      .replace(/\\\w+{([^}]*)}/g, '$1')
+      .trim();
+  };
+
+  const renderFinalAnswer = (solution: MathSolution) => {
+    const isTheory = problem?.problem && isTheoryQuestion(problem.problem);
+
+    if (isTheory) {
+      return (
+        <div className="font-sans text-lg text-white bg-gradient-to-br from-violet-500/90 to-green-400/90 shadow-2xl rounded-3xl px-12 py-8 border-4 border-violet-400/80 animate-glow-pulse speech-bubble">
+          <div className="space-y-4">
+            <p className="font-medium text-xl mb-2">Summary:</p>
+            <p className="leading-relaxed">{formatTheoryAnswer(solution.solution)}</p>
           </div>
-        </CardContent>
-      </Card>
-    );
-  }
-  
-  if (loading) {
+        </div>
+      );
+    }
+
     return (
-      <Card className="w-full max-w-3xl mx-auto">
+      <div className="font-mono text-4xl font-extrabold text-white bg-gradient-to-br from-violet-500/90 to-green-400/90 shadow-2xl rounded-3xl px-12 py-8 border-4 border-violet-400/80 animate-glow-pulse speech-bubble">
+        <FormattedMath text={solution.solution} />
+      </div>
+    );
+  };
+
+  const getConceptInfo = (solution: MathSolution) => {
+    if (!solution) return null;
+
+    // For theory questions
+    if (problem?.problem && isTheoryQuestion(problem.problem)) {
+      return {
+        mainConcept: solution.topic || 'General Knowledge',
+        keyPoints: [
+          'Definition and core concepts',
+          'Key principles and applications',
+          'Real-world examples and uses',
+        ]
+      };
+    }
+
+    // For math questions
+    const topic = solution.topic?.toLowerCase() || '';
+    if (topic.includes('algebra')) {
+      return {
+        mainConcept: 'Algebraic Operations',
+        keyPoints: [
+          'Variable manipulation and equations',
+          'Function analysis and properties',
+          'Solution methods and techniques',
+        ]
+      };
+    } else if (topic.includes('calculus')) {
+      return {
+        mainConcept: 'Calculus Concepts',
+        keyPoints: [
+          'Derivatives and rates of change',
+          'Integration and area calculations',
+          'Limit analysis and continuity',
+        ]
+      };
+    } else if (topic.includes('geometry')) {
+      return {
+        mainConcept: 'Geometric Principles',
+        keyPoints: [
+          'Shape properties and relationships',
+          'Spatial reasoning and visualization',
+          'Measurement and calculations',
+        ]
+      };
+    } else if (topic.includes('trigonometry')) {
+      return {
+        mainConcept: 'Trigonometric Functions',
+        keyPoints: [
+          'Angle measurements and ratios',
+          'Periodic function properties',
+          'Triangle relationships',
+        ]
+      };
+    }
+
+    // Default case
+    return {
+      mainConcept: 'Mathematical Concepts',
+      keyPoints: [
+        'Problem-solving strategies',
+        'Logical reasoning',
+        'Mathematical properties',
+      ]
+    };
+  };
+
+  if (!problem && !loading) return null;
+
+  return (
+    <div className="w-full max-w-4xl mx-auto">
+      <Card className="bg-card">
         <CardHeader>
-          <CardTitle>
-            <Skeleton className="h-8 w-3/4" />
-          </CardTitle>
+          <CardTitle className="text-xl font-bold">Solution</CardTitle>
           <CardDescription>
-            <Skeleton className="h-4 w-1/2" />
+            {solution?.topic || 'Mathematics'}
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <Skeleton className="h-4 w-full" />
-          <Skeleton className="h-4 w-full" />
-          <Skeleton className="h-4 w-3/4" />
-          <Skeleton className="h-4 w-5/6" />
-          <Skeleton className="h-4 w-full" />
-          <Skeleton className="h-[200px] w-full rounded-md" />
-        </CardContent>
-      </Card>
-    );
-  }
-  
-  if (!solution) return null;
-  
-  return (
-    <div className="w-full space-y-4">
-      <Card>
         <CardContent className="p-6">
           {loading ? (
             <div className="space-y-4">
-              <Skeleton className="h-6 w-3/4" />
-              <Skeleton className="h-24 w-full" />
-              <Skeleton className="h-6 w-1/2" />
+              <div className="animate-pulse h-4 w-24 bg-muted rounded" />
+              <div className="space-y-2">
+                <div className="animate-pulse h-4 w-full bg-muted rounded" />
+                <div className="animate-pulse h-4 w-3/4 bg-muted rounded" />
+              </div>
             </div>
           ) : solution ? (
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="text-lg font-medium">Solution:</div>
-                <div className="flex items-center gap-2">
-                  <Button variant="outline" size="sm" onClick={handleCopy}>
-                    <Copy className="h-4 w-4 mr-2" />
-                    Copy
-                  </Button>
-                  <Button variant="outline" size="sm" onClick={handleDownload}>
-                    <Download className="h-4 w-4 mr-2" />
-                    Download
-                  </Button>
-                  <Button variant="outline" size="sm" onClick={generatePDF}>
-                    <FileText className="h-4 w-4 mr-2" />
-                    Save as PDF
-                  </Button>
-                </div>
-              </div>
-
-              <div className="text-lg">
-                <FormattedMath text={solution.latex || solution.solution} />
-              </div>
-              
-              {solution.explanation && (
-                <div className="mt-4">
-                  <div className="text-sm text-muted-foreground mb-2">Explanation:</div>
-                  <div className="text-base">{solution.explanation}</div>
-                </div>
-              )}
-
-              {solution.steps && solution.steps.length > 0 && (
-                <div className="mt-4">
-                  <div className="text-sm text-muted-foreground mb-2">Steps:</div>
-                  <ol className="list-decimal list-inside space-y-2">
-                    {formatSolutionSteps(solution).map((step, index) => (
-                      <li key={index} className="text-base">{step}</li>
-                    ))}
-                  </ol>
-                </div>
-              )}
-
-              {solution.hints && solution.hints.length > 0 && (
-                <div className="mt-4">
-                  <div className="text-sm text-muted-foreground mb-2">Hints:</div>
-                  <ul className="list-disc list-inside space-y-2">
-                    {solution.hints.map((hint, index) => (
-                      <li key={index} className="text-base">{hint}</li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-
-              {solution.visualization && (
-                <div className="mt-4">
-                  <div className="text-sm text-muted-foreground mb-2">Visualization:</div>
-                  <div className="bg-muted rounded-lg p-4">
-                    <div className="h-[300px] w-full overflow-auto">
-                      <ResponsiveContainer width="100%" height="100%" minWidth={600}>
-                        {renderChart()}
-                      </ResponsiveContainer>
-                    </div>
-                    <div className="flex justify-end mt-2 space-x-2">
-                      <Button 
-                        variant="outline" 
-                        size="sm"
-                        onClick={() => setChartType('line')}
-                        className={chartType === 'line' ? 'bg-muted' : ''}
-                      >
-                        Line
-                      </Button>
-                      <Button 
-                        variant="outline" 
-                        size="sm"
-                        onClick={() => setChartType('scatter')}
-                        className={chartType === 'scatter' ? 'bg-muted' : ''}
-                      >
-                        Scatter
-                      </Button>
-                      <Button 
-                        variant="outline" 
-                        size="sm"
-                        onClick={() => setChartType('area')}
-                        className={chartType === 'area' ? 'bg-muted' : ''}
-                      >
-                        Area
-                      </Button>
-                    </div>
+            <div className="space-y-8">
+              {/* 🧩 Problem Statement */}
+              <motion.div
+                initial={{ opacity: 0, y: 32 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 32 }}
+                transition={{ duration: 0.5, type: 'spring' }}
+                className="relative flex items-stretch bg-gradient-to-br from-orange-300/10 to-yellow-100/10 backdrop-blur-xl rounded-3xl shadow-xl border-l-8 border-orange-400/80 overflow-visible mb-2"
+              >
+                <div className="absolute -left-2 top-6 w-2 h-20 bg-orange-400/80 rounded-full blur-xl opacity-60 animate-pulse" />
+                <div className="flex-1 p-8 flex flex-col gap-2">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="text-2xl">🧩</span>
+                    <h3 className="text-lg font-bold tracking-tight">Problem Statement</h3>
+                  </div>
+                  <div className="text-base">
+                    <FormattedMath text={problem?.problem || ''} />
                   </div>
                 </div>
+              </motion.div>
+
+              {/* 🔍 Step-by-Step Solution */}
+              <motion.div
+                initial={{ opacity: 0, y: 32 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 32 }}
+                transition={{ delay: 0.1, duration: 0.5, type: 'spring' }}
+                className="space-y-4"
+              >
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-2xl">🔍</span>
+                  <h3 className="text-lg font-bold tracking-tight">Step-by-Step Solution</h3>
+                </div>
+                <div className="flex flex-col gap-4">
+                  {solution.steps && solution.steps.length > 0 ? solution.steps.map((step, index) => (
+                    <motion.div
+                      key={index}
+                      initial={{ opacity: 0, x: 32 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: -32 }}
+                      transition={{ delay: 0.1 + index * 0.08, duration: 0.4, type: 'spring' }}
+                      className={`relative group flex items-start gap-4 p-5 rounded-2xl bg-white/20 dark:bg-slate-800/40 border-l-8 shadow-xl hover:shadow-[0_0_24px] transition-all cursor-pointer hover:bg-blue-400/10 ${stepColors[index % stepColors.length]}`}
+                    >
+                      <span className={`flex items-center justify-center w-10 h-10 rounded-full text-white font-bold text-lg shadow-lg group-hover:scale-110 transition-transform ${stepColors[index % stepColors.length]}`}>{index + 1}</span>
+                      <div className="flex-1 text-base font-mono bg-slate-900/10 rounded-lg px-4 py-2">
+                        <FormattedMath text={step} />
+                      </div>
+                    </motion.div>
+                  )) : solution.explanation && (
+                    <motion.div
+                      initial={{ opacity: 0, x: 32 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: -32 }}
+                      transition={{ delay: 0.2, duration: 0.4, type: 'spring' }}
+                      className="text-muted-foreground text-base"
+                    >
+                      {solution.explanation.split('\n').map((line, i) => (
+                        <div key={i} className="mb-1">
+                          <FormattedMath text={line} />
+                        </div>
+                      ))}
+                    </motion.div>
+                  )}
+                </div>
+              </motion.div>
+
+              {/* 📚 Concept Used / Additional Info */}
+              <motion.div
+                initial={{ opacity: 0, y: 32 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 32 }}
+                transition={{ delay: 0.2, duration: 0.5, type: 'spring' }}
+                className="relative flex items-stretch bg-gradient-to-br from-slate-900/80 to-slate-800/60 rounded-3xl shadow-xl border border-slate-400/30 overflow-hidden hover:scale-[1.025] hover:shadow-2xl transition-transform group"
+              >
+                <div className="flex-1 p-8 flex flex-col gap-2">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="text-xl">ℹ️</span>
+                    <h3 className="text-base font-semibold tracking-tight">Concept Used / Additional Info</h3>
+                  </div>
+                  {solution && (
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-2">
+                        <span className="mr-1">📘</span>
+                        <span className="font-medium">{getConceptInfo(solution).mainConcept}</span>
+                      </div>
+                      <div className="space-y-1">
+                        {getConceptInfo(solution).keyPoints.map((point, i) => (
+                          <div key={i} className="flex items-center gap-2 text-sm text-slate-300">
+                            <span className="mr-1">•</span>
+                            <span>{point}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </motion.div>
+
+              {/* ✅ Final Answer Section */}
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                transition={{ delay: 0.3, duration: 0.6, type: 'spring' }}
+                className="relative flex items-center justify-center mt-6"
+              >
+                <div className="relative w-full flex justify-center">
+                  <div className="relative z-10 flex flex-col items-center w-full">
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="text-2xl">✅</span>
+                      <h3 className="text-lg font-bold tracking-tight">Final Answer</h3>
+                    </div>
+                    {renderFinalAnswer(solution)}
+                  </div>
+                </div>
+              </motion.div>
+
+              {/* Graph if available */}
+              {graphData && (
+                <motion.div
+                  initial={{ opacity: 0, y: 32 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: 32 }}
+                  transition={{ delay: 0.4, duration: 0.5, type: 'spring' }}
+                  className="bg-gradient-to-br from-blue-500/10 to-purple-500/10 backdrop-blur-xl rounded-3xl shadow-xl p-6 mt-8"
+                >
+                  <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                    <span>📊</span> Visualization
+                  </h3>
+                  <div className="w-full overflow-x-auto">
+                    <div className="min-w-[600px]">
+                      {renderChart()}
+                    </div>
+                  </div>
+                </motion.div>
               )}
             </div>
-          ) : (
-            <div className="text-center text-muted-foreground">
-              No solution available
-            </div>
-          )}
+          ) : null}
         </CardContent>
+        {solution && (
+          <CardFooter className="flex justify-end gap-2 p-4">
+            <Button variant="outline" size="sm" onClick={handleCopy}>
+              <Copy className="w-4 h-4 mr-2" />
+              Copy
+            </Button>
+            <Button variant="outline" size="sm" onClick={handleDownload}>
+              <Download className="w-4 h-4 mr-2" />
+              Download
+            </Button>
+            <Button variant="outline" size="sm" onClick={generatePDF}>
+              <FileText className="w-4 h-4 mr-2" />
+              Save as PDF
+            </Button>
+          </CardFooter>
+        )}
       </Card>
     </div>
   );

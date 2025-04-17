@@ -1,106 +1,107 @@
-
 import { Link } from "react-router-dom";
-import { Calculator, Github, Twitter } from "lucide-react";
+import { Calculator, Github, Twitter, BookOpen, HelpCircle } from "lucide-react";
+import { useEffect, useState } from "react";
 
 const Footer = () => {
+  // For the clock (optional)
+  const [time, setTime] = useState(new Date());
+  useEffect(() => {
+    const interval = setInterval(() => setTime(new Date()), 1000);
+    return () => clearInterval(interval);
+  }, []);
+
   return (
-    <footer className="bg-muted/30 border-t">
-      <div className="container py-8">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
-          <div className="md:col-span-1">
-            <div className="flex items-center gap-2">
-              <Calculator className="h-5 w-5 text-primary" />
-              <span className="font-bold tracking-tight">MathWizard</span>
+    <footer className="relative z-10">
+      {/* 3D Mathematical Grid Background */}
+      <div className="absolute inset-0 pointer-events-none select-none overflow-hidden">
+        <div className="w-full h-full math-3d-grid opacity-[0.15] dark:opacity-[0.2]" />
+        <div className="absolute inset-0 bg-gradient-to-t from-background via-transparent to-transparent" />
+      </div>
+      {/* Glassy Panel with Neon Border */}
+      <div className="container mx-auto px-4 py-10 relative">
+        <div className="rounded-3xl shadow-md bg-background/95 dark:bg-background/80 backdrop-blur-xl border border-border">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-8 p-8">
+            {/* Brand Block */}
+            <div className="flex flex-col items-start gap-3">
+              <div className="flex items-center gap-3">
+                <span className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-primary/10 shadow-sm border border-primary/20 backdrop-blur-sm">
+                  <Calculator className="h-6 w-6 text-primary" />
+                </span>
+                <span className="font-extrabold text-2xl text-foreground">MathWizard</span>
+              </div>
+              <span className="text-sm text-muted-foreground max-w-xs block">
+                AI-powered math solver for all your mathematical needs.
+              </span>
+              <div className="mt-2 flex space-x-4">
+                <a href="#" className="text-muted-foreground hover:text-primary transition-colors">
+                  <Twitter className="h-6 w-6" />
+                  <span className="sr-only">Twitter</span>
+                </a>
+                <a href="#" className="text-muted-foreground hover:text-primary transition-colors">
+                  <Github className="h-6 w-6" />
+                  <span className="sr-only">GitHub</span>
+                </a>
+              </div>
             </div>
-            <p className="mt-2 text-sm text-muted-foreground">
-              AI-powered math solver for all yours mathematicals needs.
-            </p>
-            <div className="mt-4 flex space-x-4">
-              <a href="#" className="text-muted-foreground hover:text-foreground transition-colors">
-                <Twitter className="h-5 w-5" />
-                <span className="sr-only">Twitter</span>
-              </a>
-              <a href="#" className="text-muted-foreground hover:text-foreground transition-colors">
-                <Github className="h-5 w-5" />
-                <span className="sr-only">GitHub</span>
-              </a>
-            </div>
-          </div>
-
-          <div className="md:col-span-3 grid grid-cols-2 sm:grid-cols-3 gap-8">
-            <div>
-              <h3 className="text-sm font-semibold mb-3">Product</h3>
-              <ul className="space-y-2 text-sm">
-                <li>
-                  <Link to="/app/solver" className="text-muted-foreground hover:text-foreground transition-colors">
-                    Solver
-                  </Link>
-                </li>
-                <li>
-                  <Link to="/app/examples" className="text-muted-foreground hover:text-foreground transition-colors">
-                    Examples
-                  </Link>
-                </li>
-                <li>
-                  <Link to="/app/about" className="text-muted-foreground hover:text-foreground transition-colors">
-                    About
-                  </Link>
-                </li>
-              </ul>
-            </div>
-
-            <div>
-              <h3 className="text-sm font-semibold mb-3">Resources</h3>
-              <ul className="space-y-2 text-sm">
-                <li>
-                  <a href="#" className="text-muted-foreground hover:text-foreground transition-colors">
-                    Documentation
-                  </a>
-                </li>
-                <li>
-                  <a href="#" className="text-muted-foreground hover:text-foreground transition-colors">
-                    FAQ
-                  </a>
-                </li>
-                <li>
-                  <a href="#" className="text-muted-foreground hover:text-foreground transition-colors">
-                    Blog
-                  </a>
-                </li>
-              </ul>
-            </div>
-
-            <div>
-              <h3 className="text-sm font-semibold mb-3">Legal</h3>
-              <ul className="space-y-2 text-sm">
-                <li>
-                  <a href="#" className="text-muted-foreground hover:text-foreground transition-colors">
-                    Privacy Policy
-                  </a>
-                </li>
-                <li>
-                  <a href="#" className="text-muted-foreground hover:text-foreground transition-colors">
-                    Terms of Service
-                  </a>
-                </li>
-                <li>
-                  <a href="#" className="text-muted-foreground hover:text-foreground transition-colors">
-                    Cookie Policy
-                  </a>
-                </li>
-              </ul>
+            {/* Enhanced Link Columns */}
+            <div className="md:col-span-3 grid grid-cols-2 sm:grid-cols-3 gap-8">
+              {/* Product */}
+              <div className="rounded-xl bg-background/50 dark:bg-background/40 backdrop-blur-sm shadow-sm p-6 flex flex-col items-start group transition-all hover:bg-background/70 dark:hover:bg-background/60">
+                <h3 className="text-base font-bold mb-4 text-foreground group-hover:text-primary transition-colors">
+                  Product
+                </h3>
+                <ul className="space-y-2 w-full">
+                  <li>
+                    <Link to="/solver" className="block text-muted-foreground hover:text-foreground transition-colors">
+                      Solver
+                    </Link>
+                  </li>
+                  <li>
+                    <Link to="/examples" className="block text-muted-foreground hover:text-foreground transition-colors">
+                      Examples
+                    </Link>
+                  </li>
+                </ul>
+              </div>
+              {/* Resources */}
+              <div className="rounded-xl bg-background/50 dark:bg-background/40 backdrop-blur-sm shadow-sm p-6 flex flex-col items-start group transition-all hover:bg-background/70 dark:hover:bg-background/60">
+                <h3 className="text-base font-bold mb-4 text-foreground group-hover:text-primary transition-colors">
+                  Resources
+                </h3>
+                <ul className="space-y-2 w-full">
+                  <li>
+                    <Link to="/documentation" className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors">
+                      <BookOpen className="h-4 w-4" />
+                      Documentation
+                    </Link>
+                  </li>
+                  <li>
+                    <Link to="/faq" className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors">
+                      <HelpCircle className="h-4 w-4" />
+                      FAQ
+                    </Link>
+                  </li>
+                </ul>
+              </div>
+              
+              <div className="rounded-xl bg-background/50 dark:bg-background/40 backdrop-blur-sm shadow-sm p-6 flex flex-col items-start group transition-all hover:bg-background/70 dark:hover:bg-background/60">
+                
+                <ul className="space-y-2 w-full">
+                 
+                </ul>
+              </div>
             </div>
           </div>
-        </div>
-
-        <div className="mt-8 pt-8 border-t border-border">
-          <div className="flex flex-col md:flex-row justify-between items-center">
+          {/* Bottom Bar */}
+          <div className="h-px w-full bg-border opacity-50" />
+          <div className="flex flex-col md:flex-row justify-between items-center px-8 py-4">
             <p className="text-xs text-muted-foreground">
-              &copy; {new Date().getFullYear()} MathWizard. All rights reserved.
+              © {new Date().getFullYear()} MathWizard. All rights reserved.
             </p>
-            <p className="text-xs text-muted-foreground mt-2 md:mt-0">
-              Powered by GROQ AI
-            </p>
+            <div className="flex items-center gap-2 mt-2 md:mt-0">
+              <span className="text-xs text-muted-foreground">{time.toLocaleTimeString()}</span>
+              <span className="text-xs text-muted-foreground ml-2">Powered by GROQ AI</span>
+            </div>
           </div>
         </div>
       </div>

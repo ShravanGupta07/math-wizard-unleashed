@@ -8,11 +8,13 @@ import { UnitConverter } from "./UnitConverter";
 import { GraphingTool } from "./GraphingTool";
 import { FormulaSheet } from "./FormulaSheet";
 import { TopicExplorer } from "./TopicExplorer";
+import { QuickTools } from "./QuickTools";
+import { BrainBooster } from "./BrainBooster";
 
 interface MathToolsDialogProps {
   isOpen: boolean;
   onClose: () => void;
-  tool: "unit-converter" | "graphing-tool" | "formula-sheet" | "topic-explorer";
+  tool: "unit-converter" | "graphing-tool" | "formula-sheet" | "topic-explorer" | "quick-tools" | "brain-booster";
 }
 
 const toolTitles = {
@@ -20,6 +22,8 @@ const toolTitles = {
   "graphing-tool": "Graphing Tool",
   "formula-sheet": "Formula Sheet",
   "topic-explorer": "Topic Explorer",
+  "quick-tools": "Quick Tools & Brain Boosters",
+  "brain-booster": "Brain Booster",
 };
 
 export function MathToolsDialog({ isOpen, onClose, tool }: MathToolsDialogProps) {
@@ -33,6 +37,10 @@ export function MathToolsDialog({ isOpen, onClose, tool }: MathToolsDialogProps)
         return <FormulaSheet />;
       case "topic-explorer":
         return <TopicExplorer />;
+      case "quick-tools":
+        return <QuickTools />;
+      case "brain-booster":
+        return <BrainBooster />;
       default:
         return null;
     }

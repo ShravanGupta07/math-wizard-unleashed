@@ -10,7 +10,7 @@ import { toast } from "../components/ui/sonner";
 import { Groq } from 'groq-sdk';
 
 // The API Key, ideally this would be stored in a more secure way like environment variables or server-side
-const GROQ_API_KEY = "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";
+const GROQ_API_KEY = "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";
 
 const groqClient = new Groq({
   apiKey: GROQ_API_KEY,
@@ -19,7 +19,7 @@ const groqClient = new Groq({
 
 export interface MathProblem {
   problem: string;
-  type: "text" | "image" | "voice" | "drawing" | "file";
+  type: "text" | "image" | "voice" | "latex" | "drawing" | "file";
   fileType?: "pdf" | "docx" | "csv";
   content?: string | ArrayBuffer | null;
   requestVisualization?: boolean;
@@ -450,48 +450,128 @@ export const groq = {
     }
   },
 
+  recognizeMathFromImage: async (imageFile: File): Promise<string> => {
+    try {
+      // Convert image to base64
+      const base64Image = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          if (typeof reader.result === 'string') {
+            resolve(reader.result.split(',')[1]); // Remove data URL prefix
+          } else {
+            reject(new Error('Failed to read image file'));
+          }
+        };
+        reader.onerror = () => reject(reader.error);
+        reader.readAsDataURL(imageFile);
+      });
+
+      // Call Groq API with the image
+      const response = await fetch('https://api.groq.com/v1/vision/analyze', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${process.env.NEXT_PUBLIC_GROQ_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'mixtral-8x7b-32768',
+          messages: [
+            {
+              role: 'system',
+              content: 'You are a math OCR expert. Extract and format mathematical expressions from images accurately. Return only the recognized mathematical expression in a clean format, suitable for computation.'
+            },
+            {
+              role: 'user',
+              content: [
+                {
+                  type: 'image',
+                  data: {
+                    base64: base64Image
+                  }
+                },
+                {
+                  type: 'text',
+                  data: 'Please recognize and extract the mathematical expression from this image. Format it cleanly and return only the expression.'
+                }
+              ]
+            }
+          ],
+          temperature: 0.1,
+          max_tokens: 100,
+          stream: false
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to process image with Groq API');
+      }
+
+      const data = await response.json();
+      return data.choices[0].message.content.trim();
+    } catch (error) {
+      console.error('Error in recognizeMathFromImage:', error);
+      throw new Error('Failed to recognize math from image');
+    }
+  },
+
   transcribeAudio: async (audioBlob: Blob): Promise<string> => {
     try {
+      // Check if the audio blob is empty
+      if (audioBlob.size === 0) {
+        throw new Error("No audio was recorded. Please try speaking louder or closer to the microphone.");
+      }
+
       // First, use Web Speech API for initial transcription
       const transcription = await new Promise<string>((resolve, reject) => {
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
         if (!SpeechRecognition) {
-          throw new Error("Speech recognition is not supported in this browser");
+          throw new Error("Speech recognition is not supported in this browser. Please try a different browser.");
         }
 
         const recognition = new SpeechRecognition();
         recognition.lang = 'en-US';
         recognition.continuous = false;
         recognition.interimResults = false;
+        recognition.maxAlternatives = 1;
 
         let hasRecognizedSpeech = false;
+        let recognitionTimeout: NodeJS.Timeout;
 
         recognition.onresult = (event) => {
           const transcript = event.results[0][0].transcript;
           console.log("Initial transcription:", transcript);
           hasRecognizedSpeech = true;
+          clearTimeout(recognitionTimeout);
           resolve(transcript);
         };
 
         recognition.onerror = (event) => {
           console.error("Recognition error:", event.error);
+          clearTimeout(recognitionTimeout);
           if (event.error === 'no-speech') {
             reject(new Error('No speech detected. Please speak clearly and try again.'));
           } else if (event.error === 'audio-capture') {
-            reject(new Error('No microphone was found or microphone is disabled.'));
+            reject(new Error('No microphone was found or microphone is disabled. Please check your microphone settings.'));
           } else if (event.error === 'not-allowed') {
-            reject(new Error('Microphone permission was denied. Please allow microphone access.'));
+            reject(new Error('Microphone permission was denied. Please allow microphone access in your browser settings.'));
           } else {
             reject(new Error(`Speech recognition error: ${event.error}`));
           }
         };
 
         recognition.onend = () => {
+          clearTimeout(recognitionTimeout);
           if (!hasRecognizedSpeech) {
             reject(new Error('No speech detected. Please speak clearly and try again.'));
           }
           recognition.stop();
         };
+
+        // Set a timeout to prevent hanging
+        recognitionTimeout = setTimeout(() => {
+          recognition.stop();
+          reject(new Error('Speech recognition timed out. Please try again.'));
+        }, 10000); // 10 seconds timeout
 
         // Create an audio element and play the blob
         const audio = new Audio(URL.createObjectURL(audioBlob));
@@ -528,7 +608,7 @@ export const groq = {
       console.log("Improved transcription:", improvedTranscription);
 
       if (!improvedTranscription || improvedTranscription.trim().length === 0) {
-        throw new Error('No valid mathematical expression detected');
+        throw new Error('No valid mathematical expression detected. Please try speaking more clearly.');
       }
 
       // Clean up the transcription
@@ -666,73 +746,58 @@ function unescapeLatex(latex: string): string {
 
 // Helper function to safely parse JSON with LaTeX content
 function parseLatexJson(jsonString: string) {
-  // First, normalize the JSON string
-  const normalizedJson = jsonString
-    .replace(/\n/g, ' ')
-    .replace(/\r/g, '')
-    .replace(/\t/g, ' ')
-    .trim();
-
-  // Handle LaTeX content before parsing
-  const processedJson = normalizedJson.replace(
-    /"(?:[^"\\]|\\.)*"/g,
-    (match) => {
-      // Process only the content inside quotes
-      return match.replace(/\\/g, '\\\\')
-        .replace(/\{/g, '\\{')
-        .replace(/\}/g, '\\}')
-        .replace(/\[/g, '\\[')
-        .replace(/\]/g, '\\]');
-    }
-  );
-
   try {
-    // Parse the processed JSON
-    const parsed = JSON.parse(processedJson);
-
-    // Function to restore LaTeX in strings
-    function restoreLatex(str: string): string {
-      if (typeof str !== 'string') return str;
-      return str
-        .replace(/\\\\/g, '\\')
-        .replace(/\\\{/g, '{')
-        .replace(/\\\}/g, '}')
-        .replace(/\\\[/g, '[')
-        .replace(/\\\]/g, ']');
-    }
-
-    // Recursively restore LaTeX in the parsed object
-    function restoreLatexInObject(obj: any): any {
-      if (typeof obj === 'string') {
-        return restoreLatex(obj);
-      }
-      if (Array.isArray(obj)) {
-        return obj.map(item => restoreLatexInObject(item));
-      }
-      if (obj && typeof obj === 'object') {
-        const result: Record<string, any> = {};
-        for (const [key, value] of Object.entries(obj)) {
-          result[key] = restoreLatexInObject(value);
-        }
-        return result;
-      }
-      return obj;
-    }
-
-    return restoreLatexInObject(parsed);
-  } catch (error) {
-    // If parsing fails, try a more aggressive cleaning approach
+    // First attempt: direct parse
+    return JSON.parse(jsonString);
+  } catch (firstError) {
     try {
-      const cleanedJson = normalizedJson
-        .replace(/\\(?!["\\/bfnrt])/g, '\\\\')
-        .replace(/(?<!\\)"/g, '\\"')
-        .replace(/[\x00-\x1F\x7F-\x9F]/g, '');
-      
-      return JSON.parse(cleanedJson);
+      // Second attempt: clean up the string
+      const cleaned = jsonString
+        .replace(/\n/g, ' ')
+        .replace(/\r/g, '')
+        .replace(/\t/g, ' ')
+        .trim()
+        // Handle array brackets in strings
+        .replace(/\[\[(.*?)\]\]/g, (match) => match.replace(/\[/g, '\\[').replace(/\]/g, '\\]'))
+        // Handle other special characters
+        .replace(/\\/g, '\\\\')
+        .replace(/\[\[/g, '[')
+        .replace(/\]\]/g, ']');
+
+      return JSON.parse(cleaned);
     } catch (secondError) {
-      console.error('Error parsing LaTeX JSON:', error);
-      console.log('Problematic JSON string:', jsonString);
-      throw new Error('Failed to parse formula data');
+      // Third attempt: more aggressive cleaning
+      try {
+        const aggressive = jsonString
+          .replace(/[\x00-\x1F\x7F-\x9F]/g, '')
+          .replace(/\s+/g, ' ')
+          .trim();
+        return JSON.parse(aggressive);
+      } catch (thirdError) {
+        // If all attempts fail, return a default structure
+        console.error('Error parsing LaTeX JSON:', thirdError);
+        console.log('Problematic JSON string:', jsonString);
+        return {
+          topic: "Matrices",
+          definition: "A rectangular array of numbers arranged in rows and columns.",
+          keyPoints: [
+            "Dimensions: rows × columns",
+            "Operations: add, subtract, multiply",
+            "Types: square, identity, zero matrices",
+            "Used for solving systems of equations",
+            "Key properties: determinant, inverse"
+          ],
+          example: {
+            problem: "Basic matrix addition",
+            solution: "Simple step-by-step solution"
+          },
+          relatedTopics: [
+            "Linear Algebra",
+            "Vector Spaces",
+            "Systems of Equations"
+          ]
+        };
+      }
     }
   }
 }
@@ -946,7 +1011,16 @@ export const getFormula = async (topic: string): Promise<{ name: string; formula
 };
 
 // Helper function to format educational content
-export const formatEducationalContent = (topic: string, content: any): string => {
+export const formatEducationalContent = (topic: string, content: any): {
+  topic: string;
+  definition: string;
+  keyPoints: string[];
+  example: {
+    problem: string;
+    solution: string;
+  };
+  relatedTopics: string[];
+} => {
   // Default content for Matrices if none provided
   const defaultContent = {
     topic: "Matrices",
@@ -973,46 +1047,58 @@ export const formatEducationalContent = (topic: string, content: any): string =>
 
   const data = content || defaultContent;
 
-  return `# ${data.topic}
-
-## Definition
-${data.definition}
-
-## Key Points
-${data.keyPoints.map(point => `- ${point}`).join('\n')}
-
-## Example
-${data.example.problem}
-
-${data.example.solution}
-
-## Related Topics
-${data.relatedTopics.map(topic => `- ${topic}`).join('\n')}
-
----
-`;
+  return {
+    topic: data.topic,
+    definition: data.definition,
+    keyPoints: data.keyPoints,
+    example: data.example,
+    relatedTopics: data.relatedTopics
+  };
 };
 
 // Update the exploreTopic function to use the new formatting
 export const exploreTopic = async (topic: string): Promise<{
   topic: string;
-  description: string;
+  definition: string;
   keyPoints: string[];
+  example: {
+    problem: string;
+    solution: string;
+  };
   relatedTopics: string[];
-  examples: { problem: string; solution: string }[];
 }> => {
   try {
     const response = await groqClient.chat.completions.create({
       messages: [
         {
           role: "system",
-          content: `You are a mathematical topic explorer. Return a JSON object with educational content about the topic.
-          Include: definition, key points, example, and related topics.
-          Use clear, plain text without LaTeX or special formatting.`
+          content: `Create a structured educational explanation for the topic. Return a JSON object with the following format:
+
+{
+  "topic": "Topic Name",
+  "definition": "Concise definition",
+  "keyPoints": [
+    "Point 1",
+    "Point 2",
+    "Point 3",
+    "Point 4"
+  ],
+  "example": {
+    "problem": "Example problem",
+    "solution": "Example solution"
+  },
+  "relatedTopics": [
+    "Topic 1",
+    "Topic 2",
+    "Topic 3"
+  ]
+}
+
+Keep the content concise and easy to read. Each section should be independent and clearly formatted.`
         },
         {
           role: "user",
-          content: `Explore the mathematical topic: ${topic}`
+          content: `Create educational content for: ${topic}`
         }
       ],
       model: "llama-3.3-70b-versatile",
@@ -1022,13 +1108,7 @@ export const exploreTopic = async (topic: string): Promise<{
 
     const result = response.choices[0].message.content;
     if (!result) {
-      return {
-        topic: topic,
-        description: formatEducationalContent(topic, null),
-        keyPoints: [],
-        relatedTopics: [],
-        examples: []
-      };
+      return formatEducationalContent(topic, null);
     }
 
     // Clean and parse the response
@@ -1040,31 +1120,13 @@ export const exploreTopic = async (topic: string): Promise<{
       .replace(/\s+/g, ' ');
 
     try {
-      const parsed = JSON.parse(cleaned);
-      return {
-        topic: parsed.topic || topic,
-        description: formatEducationalContent(topic, parsed),
-        keyPoints: Array.isArray(parsed.keyPoints) ? parsed.keyPoints : [],
-        relatedTopics: Array.isArray(parsed.relatedTopics) ? parsed.relatedTopics : [],
-        examples: Array.isArray(parsed.examples) ? parsed.examples : []
-      };
+      const parsed = parseLatexJson(cleaned);
+      return formatEducationalContent(topic, parsed);
     } catch (parseError) {
-      return {
-        topic: topic,
-        description: formatEducationalContent(topic, null),
-        keyPoints: [],
-        relatedTopics: [],
-        examples: []
-      };
+      return formatEducationalContent(topic, null);
     }
   } catch (error) {
     console.error("Error exploring topic:", error);
-    return {
-      topic: topic,
-      description: formatEducationalContent(topic, null),
-      keyPoints: [],
-      relatedTopics: [],
-      examples: []
-    };
+    return formatEducationalContent(topic, null);
   }
 };

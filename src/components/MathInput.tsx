@@ -2,64 +2,147 @@ import { useState, useRef, ChangeEvent } from "react";
 import { Button } from "./ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 import { Textarea } from "./ui/textarea";
-import { Card, CardContent } from "./ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { toast } from "./ui/sonner";
 import { useAuth } from "../contexts/AuthContext";
-import { Camera, FileText, Mic, PenTool, Upload } from "lucide-react";
+import { Camera, FileText, Mic, PenTool, Upload, Calculator, X } from "lucide-react";
 import { MathProblem } from "../lib/groq-api";
 import VoiceRecorder from "./VoiceRecorder";
 import DrawingCanvas from "./DrawingCanvas";
 import 'katex/dist/katex.min.css';
 import { InlineMath } from 'react-katex';
-import { createWorker } from 'tesseract.js';
+import { createWorker, PSM } from 'tesseract.js';
 import { groq } from "../lib/groq-api";
+import { LineChart, PenLine } from "lucide-react";
+import LatexInput from "./LatexInput";
+import { motion } from "framer-motion";
+import { useNavigate } from "react-router-dom";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "./ui/dialog";
 
 interface MathInputProps {
-  onSubmit: (problem: MathProblem) => void;
-  isLoading: boolean;
+  onSubmit: (problem: MathProblem | string) => void;
+  isLoading?: boolean;
+  onClear: () => void;
 }
 
-const MathInput: React.FC<MathInputProps> = ({ onSubmit, isLoading }) => {
-  const [inputMethod, setInputMethod] = useState<"text" | "image" | "voice" | "drawing" | "file">("text");
+const MathInput: React.FC<MathInputProps> = ({ onSubmit, isLoading, onClear }) => {
+  const [inputMethod, setInputMethod] = useState<"text" | "image" | "voice" | "latex" | "file">("text");
   const [textInput, setTextInput] = useState("");
   const [latexPreview, setLatexPreview] = useState("");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [filePreviewUrl, setFilePreviewUrl] = useState<string | null>(null);
   const [isRecording, setIsRecording] = useState(false);
-  const [transcribedText, setTranscribedText] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [transcribedText, setTranscribedText] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const { user, isAuthenticated } = useAuth();
+  const [solution, setSolution] = useState<{
+    steps: string[];
+    answer: string;
+    explanation: string;
+  } | null>(null);
+  const navigate = useNavigate();
+  const [showLoginPrompt, setShowLoginPrompt] = useState(false);
+  const [textSolveCount, setTextSolveCount] = useState(0);
+
+  const tabMeta = [
+    { value: 'text', label: 'Text', icon: FileText },
+    { value: 'image', label: 'Image', icon: Camera },
+    { value: 'voice', label: 'Voice', icon: Mic },
+    { value: 'latex', label: 'LaTeX', icon: Calculator },
+    { value: 'file', label: 'File', icon: Upload },
+  ];
+
+  const visibleTabs = isAuthenticated
+    ? tabMeta
+    : tabMeta.filter(tab => tab.value === 'text');
 
   // Process image using Tesseract and Groq
   const processImage = async (file: File) => {
     try {
-      const worker = await createWorker('eng');
+      setIsProcessing(true);
+      
+      // Create and initialize worker
+      const worker = await createWorker();
+      await worker.load();
+      await worker.reinitialize('eng');
       
       // Configure worker for math symbols
       await worker.setParameters({
         tessedit_char_whitelist: '0123456789+-×÷=()[]{}<>√π∞abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ',
+        tessedit_pageseg_mode: PSM.SINGLE_BLOCK,
       });
 
+      toast.info("Reading image...");
       const { data: { text } } = await worker.recognize(file);
       
-      if (text) {
-        // Use Groq to improve the recognized text
-        const improvedText = await groq.recognizeMathFromText(text);
-        setTextInput(improvedText);
-        const latex = await groq.convertToLatex(improvedText);
-        setLatexPreview(latex);
-        toast.success("Text recognized and processed successfully");
-      } else {
-        toast.error("No text found in the image");
+      if (!text) {
+        toast.error("No text found. Please upload a clearer image.");
+        setIsProcessing(false);
+        await worker.terminate();
+        return;
       }
 
+      toast.info("Processing math content...");
+      // Use Groq to improve the recognized text
+      const improvedText = await groq.recognizeMathFromText(text);
+      
+      if (improvedText.toLowerCase().includes("unreadable")) {
+        toast.error("Image is unclear. Please upload a clearer image with better lighting and contrast.");
+        setIsProcessing(false);
+        await worker.terminate();
+      return;
+    }
+
+      toast.info("Converting to LaTeX...");
+      // Convert to LaTeX and get solution
+      const latex = await groq.convertToLatex(improvedText);
+      
+      toast.info("Solving problem...");
+      const solution = await groq.recognizeMathFromText(`Solve the following math problem step by step and explain each step clearly:
+
+      ${improvedText}
+
+      Provide your response in this format:
+      
+      SOLUTION:
+      1. [First step explanation]
+      2. [Second step explanation]
+      ...
+
+      ANSWER:
+      [Final answer]
+
+      EXPLANATION:
+      [Any additional explanations or diagrams needed]`);
+
+      // Parse the solution response
+      const solutionParts = solution.split('\n\n');
+      const steps = solutionParts.find(part => part.startsWith('SOLUTION:'))?.split('\n').slice(1) || [];
+      const answer = solutionParts.find(part => part.startsWith('ANSWER:'))?.split('\n')[1] || '';
+      const explanation = solutionParts.find(part => part.startsWith('EXPLANATION:'))?.split('\n').slice(1).join('\n') || '';
+
+      // Update UI with extracted content and solution
+      setTextInput(improvedText);
+      setLatexPreview(latex);
+      
+      // Store the full solution for display
+      setSolution({
+        steps,
+        answer,
+        explanation
+      });
+
+      toast.success("Problem solved successfully!");
       await worker.terminate();
     } catch (error) {
       console.error("Error processing image:", error);
-      toast.error("Failed to process image");
+      toast.error("Failed to process image. Please try again with a clearer image.");
+    } finally {
+      setIsProcessing(false);
     }
   };
 
@@ -67,22 +150,33 @@ const MathInput: React.FC<MathInputProps> = ({ onSubmit, isLoading }) => {
   const processVoiceRecording = async (audioBlob: Blob) => {
     try {
       setIsProcessing(true);
+      setError(null);
       
-      // Convert Blob to File
-      const audioFile = new File([audioBlob], "recording.webm", { type: 'audio/webm' });
-      
-      // Use Groq to transcribe and process the audio
-      const transcription = await groq.transcribeAudio(audioFile);
-      setTranscribedText(transcription);
-      
-      // Use Groq to convert to LaTeX
-      const latex = await groq.convertToLatex(transcription);
-      setLatexPreview(latex);
+      // Check if the audio blob is empty
+      if (audioBlob.size === 0) {
+        throw new Error("No audio was recorded. Please try speaking louder or closer to the microphone.");
+      }
 
-      toast.success("Voice processed successfully");
-    } catch (error) {
-      console.error("Error processing voice:", error);
-      toast.error("Failed to process voice recording");
+      const transcription = await groq.transcribeAudio(audioBlob);
+      
+      if (!transcription || transcription.trim().length === 0) {
+        throw new Error("Could not transcribe the audio. Please try speaking more clearly.");
+      }
+
+      // Convert transcription to LaTeX
+      const latex = await groq.recognizeMathFromText(transcription);
+      
+      if (!latex || latex.trim().length === 0) {
+        throw new Error("Could not convert the transcription to a mathematical expression. Please try speaking more clearly.");
+      }
+
+      setTranscribedText(transcription);
+      setError(null);
+    } catch (err) {
+      console.error("Error processing voice recording:", err);
+      const errorMessage = err instanceof Error ? err.message : "Failed to process voice recording";
+      setError(errorMessage);
+      toast.error(errorMessage);
     } finally {
       setIsProcessing(false);
     }
@@ -98,12 +192,12 @@ const MathInput: React.FC<MathInputProps> = ({ onSubmit, isLoading }) => {
 
       const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
       const audioFile = new File([audioBlob], "recording.webm", { type: 'audio/webm' });
-      
-      onSubmit({
+
+    onSubmit({
         problem: transcribedText,
         type: "voice",
         content: await readFileAsBase64(audioFile),
-      });
+    });
     } catch (error) {
       console.error("Error processing voice recording:", error);
       toast.error("Failed to process your recording. Please try again.");
@@ -180,11 +274,12 @@ const MathInput: React.FC<MathInputProps> = ({ onSubmit, isLoading }) => {
   // Start voice recording
   const startRecording = async () => {
     try {
+      setError(null);
       console.log("Starting recording...");
       const stream = await navigator.mediaDevices.getUserMedia({ 
         audio: {
-          channelCount: 1, // Mono audio
-          sampleRate: 44100, // High quality audio
+          channelCount: 1,
+          sampleRate: 44100,
           sampleSize: 16,
           echoCancellation: true,
           noiseSuppression: true,
@@ -212,7 +307,7 @@ const MathInput: React.FC<MathInputProps> = ({ onSubmit, isLoading }) => {
       
       const mediaRecorder = new MediaRecorder(stream, {
         mimeType: mimeType,
-        audioBitsPerSecond: 128000 // 128 kbps for good quality
+        audioBitsPerSecond: 128000
       });
       
       mediaRecorderRef.current = mediaRecorder;
@@ -229,7 +324,6 @@ const MathInput: React.FC<MathInputProps> = ({ onSubmit, isLoading }) => {
           setIsProcessing(true);
           toast.info("Processing your voice recording...");
           
-          // Combine all chunks into a single blob
           const audioBlob = new Blob(audioChunksRef.current, { type: mimeType });
           console.log("Final audio size:", audioBlob.size, "bytes");
           
@@ -237,7 +331,7 @@ const MathInput: React.FC<MathInputProps> = ({ onSubmit, isLoading }) => {
             throw new Error("No audio was recorded. Please try again.");
           }
           
-          if (audioBlob.size > 5 * 1024 * 1024) { // 5MB limit
+          if (audioBlob.size > 5 * 1024 * 1024) {
             throw new Error("Recording too long. Please keep it under 15 seconds.");
           }
           
@@ -250,18 +344,13 @@ const MathInput: React.FC<MathInputProps> = ({ onSubmit, isLoading }) => {
           }
           
           setTranscribedText(transcription);
+          setError(null);
           toast.success("Voice recording processed successfully");
           
-          // Convert to LaTeX
-          toast.info("Converting to mathematical notation...");
-          const latex = await groq.convertToLatex(transcription);
-          console.log("LaTeX:", latex);
-          setLatexPreview(latex);
-          
-          toast.success("Ready to solve your math problem!");
         } catch (error) {
           console.error("Error processing voice:", error);
           const errorMessage = error instanceof Error ? error.message : "Failed to process voice recording";
+          setError(errorMessage);
           toast.error(errorMessage, {
             description: "Try speaking more clearly or closer to the microphone.",
             action: {
@@ -276,14 +365,16 @@ const MathInput: React.FC<MathInputProps> = ({ onSubmit, isLoading }) => {
         }
       };
 
-      mediaRecorder.start(500); // Record in half-second chunks
+      mediaRecorder.start(500);
       setIsRecording(true);
       toast.success("Recording started", {
         description: "Speak your math problem clearly and press the button again to stop."
       });
     } catch (error) {
       console.error("Error starting recording:", error);
-      toast.error("Failed to start recording: " + (error instanceof Error ? error.message : "Unknown error"));
+      const errorMessage = error instanceof Error ? error.message : "Failed to access microphone";
+      setError(errorMessage);
+      toast.error("Failed to start recording: " + errorMessage);
     }
   };
 
@@ -299,18 +390,68 @@ const MathInput: React.FC<MathInputProps> = ({ onSubmit, isLoading }) => {
   // Handle voice submit
   const handleVoiceSubmit = async () => {
     if (!transcribedText) {
-      toast.error("Please record your math problem first");
+      setError("Please record your math problem first");
       return;
     }
 
     try {
+      setError(null);
+      setIsProcessing(true);
+      
+      const solution = await groq.recognizeMathFromText(`Solve the following math problem step by step and explain each step clearly:
+
+      ${transcribedText}
+
+      Provide your response in this format:
+      
+      SOLUTION:
+      1. [First step explanation]
+      2. [Second step explanation]
+      ...
+
+      ANSWER:
+      [Final answer]
+
+      EXPLANATION:
+      [Any additional explanations or diagrams needed]`);
+
+      // Parse the solution response
+      const solutionParts = solution.split('\n\n');
+      const steps = solutionParts.find(part => part.startsWith('SOLUTION:'))?.split('\n').slice(1) || [];
+      const answer = solutionParts.find(part => part.startsWith('ANSWER:'))?.split('\n')[1] || '';
+      const explanation = solutionParts.find(part => part.startsWith('EXPLANATION:'))?.split('\n').slice(1).join('\n') || '';
+
+      // Format the LaTeX for better readability
+      const formattedSteps = steps.map(step => {
+        return step
+          .replace(/\\lim_\{x \\to \\infty\}/g, '\\lim_{x \\to \\infty}')
+          .replace(/\\frac\{([^}]+)\}\{([^}]+)\}/g, '\\frac{$1}{$2}')
+          .replace(/\\cdot/g, ' \\cdot ')
+          .replace(/\\infty/g, '\\infty')
+          .replace(/\\boxed\{([^}]+)\}/g, '\\boxed{$1}');
+      });
+
+      setSolution({
+        steps: formattedSteps,
+        answer: answer.replace(/\\boxed\{([^}]+)\}/g, '\\boxed{$1}'),
+        explanation
+      });
+
+      // Call the parent onSubmit handler with the solution
       onSubmit({
         problem: transcribedText,
         type: "voice",
+        content: null
       });
+
+      toast.success("Problem solved successfully!");
     } catch (error) {
-      console.error("Error submitting:", error);
-      toast.error("Failed to submit. Please try again.");
+      console.error("Error solving problem:", error);
+      const errorMessage = error instanceof Error ? error.message : "Failed to solve the problem";
+      setError(errorMessage);
+      toast.error(errorMessage);
+    } finally {
+      setIsProcessing(false);
     }
   };
 
@@ -382,18 +523,26 @@ const MathInput: React.FC<MathInputProps> = ({ onSubmit, isLoading }) => {
       problem: textInput,
       type: "text",
     });
+
+    // Only for non-logged-in users, increment solve count and show modal if needed
+    if (!isAuthenticated) {
+      const newCount = textSolveCount + 1;
+      setTextSolveCount(newCount);
+      if (newCount === 3) {
+        setShowLoginPrompt(true);
+      }
+    }
   };
 
-  const handleDrawingSave = (imageData: string) => {
+  const handleLatexSubmit = (latex: string) => {
     try {
       onSubmit({
-        problem: "Hand-drawn math problem",
-        type: "drawing",
-        content: imageData,
+        problem: latex,
+        type: "latex",
       });
     } catch (error) {
-      console.error("Error processing drawing:", error);
-      toast.error("Failed to process your drawing. Please try again.");
+      console.error("Error processing LaTeX:", error);
+      toast.error("Failed to process LaTeX. Please try again.");
     }
   };
 
@@ -412,275 +561,369 @@ const MathInput: React.FC<MathInputProps> = ({ onSubmit, isLoading }) => {
     }
   };
 
+  const handleClear = () => {
+    setTextInput("");
+    setLatexPreview("");
+    setTranscribedText("");
+    setError(null);
+    setSolution(null);
+    setSelectedFile(null);
+    setFilePreviewUrl(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+    onClear();
+  };
+
   return (
-    <Tabs defaultValue="text" className="w-full h-full flex flex-col" onValueChange={(value) => setInputMethod(value as any)}>
-      <TabsList className="grid w-full grid-cols-5 bg-transparent">
-        <TabsTrigger value="text" className="data-[state=active]:bg-white/10">
-          Text
-        </TabsTrigger>
-        <TabsTrigger value="image" className="data-[state=active]:bg-white/10">
-          Image
-        </TabsTrigger>
-        <TabsTrigger value="voice" className="data-[state=active]:bg-white/10">
-          Voice
-        </TabsTrigger>
-        <TabsTrigger value="draw" className="data-[state=active]:bg-white/10">
-          Draw
-        </TabsTrigger>
-        <TabsTrigger value="file" className="data-[state=active]:bg-white/10">
-          File
-        </TabsTrigger>
-      </TabsList>
+    <>
+      <Tabs defaultValue="text" className="w-full h-full" onValueChange={(value) => setInputMethod(value as any)}>
+        <TabsList className="relative flex w-full justify-between bg-white/10 dark:bg-slate-900/60 backdrop-blur-xl rounded-2xl shadow-lg border border-purple-400/20 mb-6 overflow-hidden">
+          {tabMeta.map(({ value, label, icon: Icon }) => {
+            const isDisabled = !isAuthenticated && value !== 'text';
+            return (
+              <TabsTrigger
+                key={value}
+                value={value}
+                className={
+                  "relative flex-1 py-3 px-0 text-lg font-semibold transition-all duration-300 rounded-none focus:z-10" +
+                  (isDisabled ? " opacity-50 pointer-events-none select-none cursor-not-allowed" : "")
+                }
+                aria-disabled={isDisabled}
+                tabIndex={isDisabled ? -1 : 0}
+                title={isDisabled ? "Please sign in to use this feature" : undefined}
+                onClick={isDisabled ? (e) => e.preventDefault() : undefined}
+              >
+                <span className="flex items-center justify-center gap-2">
+                  <Icon className="h-5 w-5" />{label}
+                </span>
+                {/* Glowing/slide indicator for active tab */}
+                <motion.div
+                  layoutId="tab-indicator"
+                  className="absolute left-0 right-0 bottom-0 h-1 rounded-t bg-gradient-to-r from-purple-500 to-blue-500 shadow-[0_0_16px_#a855f7]"
+                  style={{ opacity: inputMethod === value ? 1 : 0 }}
+                  transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+                />
+              </TabsTrigger>
+            );
+          })}
+        </TabsList>
 
-      <div className="flex-1 p-4">
-        <TabsContent value="text" className="h-full m-0">
-          <div className="flex flex-col h-full space-y-4">
-            <Textarea
-              placeholder="Enter your math problem here... (e.g., Solve for x: 2x + 5 = 13)"
-              value={textInput}
-              onChange={handleTextChange}
-              className="flex-1 min-h-0 bg-transparent border-0 resize-none focus-visible:ring-0 text-lg"
-            />
-            <Button 
-              onClick={handleTextSubmit} 
-              disabled={isLoading || !textInput.trim()} 
-              className="w-full"
-            >
-              Solve Problem
-            </Button>
-          </div>
-        </TabsContent>
+        <div className="relative">
+          <TabsContent value="text" className="m-0">
+            <div className="flex flex-col items-center justify-center border-2 border-dashed border-purple-400/20 rounded-xl p-8 bg-white/10 dark:bg-slate-900/60 backdrop-blur-xl">
+              <div className="w-full">
+                <Card className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border-purple-200/20 dark:border-purple-900/20">
+                  <CardHeader className="flex flex-row items-center justify-between">
+                    <CardTitle className="text-gray-900 dark:text-gray-100">Enter Math Problem</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="relative">
+                      <Textarea
+                        placeholder="Enter your math problem here... (e.g., Solve for x: 2x + 5 = 13)"
+                        value={textInput}
+                        onChange={handleTextChange}
+                        className="min-h-[120px] w-full resize-none rounded-xl pr-20 pl-4 py-3 bg-white/20 dark:bg-slate-800/40 border border-purple-400/20 focus:ring-4 focus:ring-purple-500/40 shadow-inner text-lg"
+                      />
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="absolute right-2 top-2 h-8 w-8"
+                        onClick={handleClear}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
 
-        <TabsContent value="image" className="space-y-4">
-          <Card>
-            <CardContent className="p-6">
+                {/* LaTeX preview */}
+                {latexPreview && (
+                  <Card className="mt-4 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border-purple-200/20 dark:border-purple-900/20">
+                    <CardHeader className="flex flex-row items-center justify-between">
+                      <CardTitle className="text-gray-900 dark:text-gray-100">Preview</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-lg font-mono p-4 bg-slate-900 text-white rounded-lg">
+                        {textInput
+                          .replace(/\*/g, '×')
+                          .replace(/\^2/g, '²')
+                          .replace(/\^3/g, '³')
+                          .replace(/\^4/g, '⁴')
+                          .replace(/\^5/g, '⁵')
+                          .replace(/\^6/g, '⁶')
+                          .replace(/\^7/g, '⁷')
+                          .replace(/\^8/g, '⁸')
+                          .replace(/\^9/g, '⁹')
+                          .replace(/sqrt\((.*?)\)/g, '√$1')
+                          .replace(/\//g, '÷')}
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* Solve button */}
+                <div className="flex justify-end mt-4">
+                  <Button
+                    onClick={handleTextSubmit}
+                    disabled={!textInput.trim() || isLoading}
+                    className="px-10 py-3 text-lg font-bold bg-gradient-to-r from-blue-500 to-purple-500 text-white shadow-xl rounded-2xl transition-all duration-200 active:scale-95 active:shadow-inner hover:shadow-[0_0_32px_#a855f7] focus:ring-4 focus:ring-purple-500/40"
+                  >
+                    {isLoading ? "Solving..." : "Solve"}
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="image" className="m-0">
+            <div className="flex flex-col items-center justify-center border-2 border-dashed border-purple-400/20 rounded-xl p-8 bg-white/10 dark:bg-slate-900/60 backdrop-blur-xl">
+              {filePreviewUrl ? (
+                <div className="relative w-full">
+                  <img 
+                    src={filePreviewUrl} 
+                    alt="Selected" 
+                    className="mx-auto max-h-[200px] rounded-md object-contain"
+                  />
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="absolute top-2 right-2"
+                    onClick={handleClear}
+                  >
+                    Clear
+                  </Button>
+                </div>
+              ) : (
+                <div className="text-center">
+                  <Camera className="mx-auto h-12 w-12 text-purple-400 mb-4" />
+                  <h3 className="text-lg font-semibold mb-2">Upload Math Problem</h3>
+                  <p className="text-gray-600 dark:text-gray-300 mb-4">
+                    Take a clear photo or upload an image of your math problem
+                  </p>
+                  <Button 
+                    variant="outline" 
+                    onClick={() => fileInputRef.current?.click()}
+                    className="bg-white/20 dark:bg-slate-800/40 border-purple-400/20 hover:bg-purple-50/80 dark:hover:bg-purple-900/40"
+                  >
+                    <Upload className="h-4 w-4 mr-2" /> Choose Image
+                  </Button>
+                </div>
+              )}
+              <input
+                type="file"
+                ref={fileInputRef}
+                className="hidden"
+                accept="image/*"
+                onChange={handleFileChange}
+              />
+
+              {filePreviewUrl && (
+                <div className="flex justify-end w-full mt-4">
+                  <Button 
+                    onClick={handleFileSubmit} 
+                    disabled={!selectedFile || isProcessing}
+                    className="px-8 bg-gradient-to-r from-blue-500 to-purple-500 text-white shadow-xl"
+                  >
+                    {isProcessing ? "Processing..." : "Solve"}
+                  </Button>
+                </div>
+              )}
+            </div>
+          </TabsContent>
+
+          <TabsContent value="voice" className="m-0">
+            <div className="flex flex-col items-center justify-center border-2 border-dashed border-purple-400/20 rounded-xl p-8 bg-white/10 dark:bg-slate-900/60 backdrop-blur-xl">
+              {isRecording ? (
+                <div className="text-center">
+                  <div className="relative">
+                    <Mic className="h-12 w-12 text-purple-400 animate-pulse" />
+                    <div className="absolute inset-0 bg-purple-400/10 rounded-full animate-ping" />
+                  </div>
+                  <p className="mt-4 text-gray-600 dark:text-gray-300">Recording...</p>
+                  <Button
+                    variant="destructive"
+                    className="mt-4"
+                    onClick={stopRecording}
+                  >
+                    Stop Recording
+                  </Button>
+                </div>
+              ) : transcribedText ? (
+                <div className="w-full">
+                  <div className="relative">
+                    <Textarea
+                      value={transcribedText}
+                      onChange={(e) => setTranscribedText(e.target.value)}
+                      className="min-h-[200px] w-full resize-none rounded-xl pr-20 pl-4 py-3 bg-white/20 dark:bg-slate-800/40 border border-purple-400/20 focus:ring-4 focus:ring-purple-500/40 shadow-inner text-lg"
+                    />
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="absolute right-2 top-2 h-8 w-8"
+                      onClick={handleClear}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+
+                  <div className="flex justify-end mt-4">
+                    <Button
+                      onClick={handleVoiceSubmit}
+                      disabled={!transcribedText.trim() || isProcessing}
+                      className="px-8 bg-gradient-to-r from-blue-500 to-purple-500 text-white shadow-xl"
+                    >
+                      {isProcessing ? "Solving..." : "Solve"}
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div className="text-center">
+                  <Mic className="mx-auto h-12 w-12 text-purple-400 mb-4" />
+                  <h3 className="text-lg font-semibold mb-2">Voice Input</h3>
+                  <p className="text-gray-600 dark:text-gray-300 mb-4">
+                    Speak your math problem clearly
+                  </p>
+                  <Button 
+                    onClick={startRecording}
+                    className="bg-white/20 dark:bg-slate-800/40 border-purple-400/20 hover:bg-purple-50/80 dark:hover:bg-purple-900/40"
+                  >
+                    Start Recording
+                  </Button>
+                </div>
+              )}
+            </div>
+          </TabsContent>
+
+          <TabsContent value="latex" className="m-0">
+            <div className="flex flex-col items-center justify-center border-2 border-dashed border-purple-400/20 rounded-xl p-8 bg-white/10 dark:bg-slate-900/60 backdrop-blur-xl">
               {!isAuthenticated ? (
-                <div className="text-center py-8">
-                  <Camera className="mx-auto h-12 w-12 text-primary/50 mb-4" />
+                <div className="text-center">
+                  <Calculator className="mx-auto h-12 w-12 text-purple-400 mb-4" />
+                  <h3 className="text-lg font-semibold mb-2">LaTeX Input</h3>
+                  <p className="text-gray-600 dark:text-gray-300 mb-4">
+                    Log in to use the LaTeX input feature for your math problems.
+                  </p>
+                  <Button 
+                    onClick={handlePremiumFeatureClick}
+                    className="bg-white/20 dark:bg-slate-800/40 border-purple-400/20 hover:bg-purple-50/80 dark:hover:bg-purple-900/40"
+                  >
+                    Log in to Access
+                  </Button>
+                </div>
+              ) : (
+                <LatexInput onSave={handleLatexSubmit} onClear={handleClear} />
+              )}
+            </div>
+          </TabsContent>
+
+          <TabsContent value="file" className="m-0">
+            <div className="flex flex-col items-center justify-center border-2 border-dashed border-purple-400/20 rounded-xl p-8 bg-white/10 dark:bg-slate-900/60 backdrop-blur-xl">
+              {!isAuthenticated ? (
+                <div className="text-center">
+                  <FileText className="mx-auto h-12 w-12 text-purple-400 mb-4" />
                   <h3 className="text-lg font-semibold mb-2">Premium Feature</h3>
-                  <p className="text-muted-foreground mb-4">Log in to upload and solve math problems from images.</p>
-                  <Button onClick={handlePremiumFeatureClick}>Log in to Access</Button>
+                  <p className="text-gray-600 dark:text-gray-300 mb-4">
+                    Log in to upload and solve math problems from PDF, DOCX, or CSV files.
+                  </p>
+                  <Button 
+                    onClick={handlePremiumFeatureClick}
+                    className="bg-white/20 dark:bg-slate-800/40 border-purple-400/20 hover:bg-purple-50/80 dark:hover:bg-purple-900/40"
+                  >
+                    Log in to Access
+                  </Button>
                 </div>
               ) : (
                 <>
-                  <div className="flex flex-col items-center justify-center border-2 border-dashed border-input rounded-lg p-6 mb-4">
-                    {filePreviewUrl ? (
-                      <div className="relative w-full">
-                        <img 
-                          src={filePreviewUrl} 
-                          alt="Selected" 
-                          className="mx-auto max-h-[300px] rounded-md object-contain"
-                        />
+                  {selectedFile ? (
+                    <div className="w-full">
+                      <div className="flex items-center p-4 bg-white/20 dark:bg-slate-800/40 rounded-xl border border-purple-400/20">
+                        <FileText className="h-8 w-8 text-purple-400 mr-3" />
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium truncate">{selectedFile.name}</p>
+                          <p className="text-sm text-gray-600 dark:text-gray-300">
+                            {(selectedFile.size / 1024).toFixed(1)} KB
+                          </p>
+                        </div>
                         <Button
-                          variant="outline"
+                          variant="ghost"
                           size="sm"
-                          className="absolute top-2 right-2"
                           onClick={() => {
                             setSelectedFile(null);
-                            setFilePreviewUrl(null);
                             if (fileInputRef.current) fileInputRef.current.value = "";
                           }}
                         >
-                          Clear
+                          Remove
                         </Button>
                       </div>
-                    ) : (
-                      <>
-                        <Camera className="h-12 w-12 text-primary/50 mb-4" />
-                        <h3 className="text-lg font-semibold mb-2">Upload Image</h3>
-                        <p className="text-muted-foreground text-center mb-4">
-                          Drag & drop an image of your math problem here, or click to browse
-                        </p>
-                        <Button 
-                          variant="outline" 
-                          onClick={() => fileInputRef.current?.click()}
-                        >
-                          <Upload className="h-4 w-4 mr-2" /> Choose Image
-                        </Button>
-                      </>
-                    )}
-                    <input
-                      type="file"
-                      ref={fileInputRef}
-                      className="hidden"
-                      accept="image/*"
-                      onChange={handleFileChange}
-                    />
-                  </div>
 
-                  {textInput && (
-                    <div className="mt-4">
-                      <h3 className="text-lg font-semibold mb-2">Recognized Text:</h3>
-                      <Card>
-                        <CardContent className="p-4">
-                          <p className="text-lg">{textInput}</p>
-                          {latexPreview && (
-                            <div className="mt-2">
-                              <div className="text-sm text-muted-foreground mb-2">Preview:</div>
-                              <div className="text-lg">
-                                <InlineMath math={latexPreview} />
-                              </div>
-                            </div>
-                          )}
-                        </CardContent>
-                      </Card>
+                      <div className="flex justify-end mt-4">
+                        <Button 
+                          onClick={handleFileSubmit} 
+                          disabled={!selectedFile || isProcessing}
+                          className="px-8 bg-gradient-to-r from-blue-500 to-purple-500 text-white shadow-xl"
+                        >
+                          {isProcessing ? "Processing..." : "Extract & Solve"}
+                        </Button>
+                      </div>
                     </div>
+                  ) : (
+                    <>
+                      <FileText className="h-12 w-12 text-purple-400 mb-4" />
+                      <h3 className="text-lg font-semibold mb-2">Upload File</h3>
+                      <p className="text-gray-600 dark:text-gray-300 text-center mb-4">
+                        Upload PDF, DOCX, or CSV files to extract and solve math problems
+                      </p>
+                      <Button 
+                        variant="outline" 
+                        onClick={() => fileInputRef.current?.click()}
+                        className="bg-white/20 dark:bg-slate-800/40 border-purple-400/20 hover:bg-purple-50/80 dark:hover:bg-purple-900/40"
+                      >
+                        <Upload className="h-4 w-4 mr-2" /> Choose File
+                      </Button>
+                    </>
                   )}
-
-                  <Button 
-                    onClick={handleFileSubmit} 
-                    disabled={!selectedFile || isLoading}
-                    className="w-full"
-                  >
-                    {isLoading ? "Processing..." : "Solve from Image"}
-                  </Button>
+                  <input
+                    type="file"
+                    ref={fileInputRef}
+                    className="hidden"
+                    accept=".pdf,.docx,.csv,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/csv"
+                    onChange={handleFileChange}
+                  />
                 </>
               )}
-            </CardContent>
-          </Card>
-        </TabsContent>
+            </div>
+          </TabsContent>
+        </div>
+      </Tabs>
 
-        <TabsContent value="voice" className="space-y-4">
-          <div className="flex flex-col items-center justify-center min-h-[400px] bg-background rounded-lg p-8">
-            <button
-              onClick={isRecording ? stopRecording : startRecording}
-              disabled={isProcessing}
-              className={`w-24 h-24 rounded-full flex items-center justify-center transition-all ${
-                isRecording 
-                  ? "bg-red-500 hover:bg-red-600" 
-                  : "bg-primary hover:bg-primary/90"
-              } ${isProcessing ? "opacity-50 cursor-not-allowed" : ""}`}
-            >
-              <Mic className="w-10 h-10 text-white" />
-            </button>
-            
-            <p className="mt-4 text-muted-foreground">
-              {isProcessing ? "Processing..." : 
-               isRecording ? "Recording... Click to stop" : 
-               "Click to start recording"}
-            </p>
-
-            {transcribedText && (
-              <div className="mt-8 w-full max-w-xl">
-                <Card className="bg-card/50">
-                  <CardContent className="p-4">
-                    <p className="text-lg font-medium">Transcribed Text:</p>
-                    <p className="mt-2">{transcribedText}</p>
-                    {latexPreview && (
-                      <div className="mt-4 pt-4 border-t">
-                        <p className="text-sm text-muted-foreground mb-2">Preview:</p>
-                        <div className="text-lg">
-                          <InlineMath math={latexPreview} />
-                        </div>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              </div>
-            )}
-
-            <Button
-              onClick={handleVoiceSubmit}
-              disabled={!transcribedText || isLoading || isProcessing}
-              className="w-full mt-4"
-              size="lg"
-            >
-              {isLoading ? "Processing..." : "Solve Problem"}
-            </Button>
+      <Dialog open={showLoginPrompt} onOpenChange={setShowLoginPrompt}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Unlock More Features</DialogTitle>
+          </DialogHeader>
+          <div className="py-4 text-center">
+            <p className="mb-4">Log in or sign up to save your progress and access more features!</p>
           </div>
-        </TabsContent>
-
-        <TabsContent value="draw" className="space-y-4">
-          <Card>
-            <CardContent className="p-6">
-              {!isAuthenticated ? (
-                <div className="text-center py-8">
-                  <PenTool className="mx-auto h-12 w-12 text-primary/50 mb-4" />
-                  <h3 className="text-lg font-semibold mb-2">Draw Your Problem</h3>
-                  <p className="text-muted-foreground mb-4">
-                    Log in to use the drawing feature for your math problems.
-                  </p>
-                  <Button onClick={handlePremiumFeatureClick}>Log in to Access</Button>
-                </div>
-              ) : (
-                <DrawingCanvas onSave={handleDrawingSave} />
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="file" className="space-y-4">
-          <Card>
-            <CardContent className="p-6">
-              {!isAuthenticated ? (
-                <div className="text-center py-8">
-                  <FileText className="mx-auto h-12 w-12 text-primary/50 mb-4" />
-                  <h3 className="text-lg font-semibold mb-2">Premium Feature</h3>
-                  <p className="text-muted-foreground mb-4">Log in to upload and solve math problems from PDF, DOCX, or CSV files.</p>
-                  <Button onClick={handlePremiumFeatureClick}>Log in to Access</Button>
-                </div>
-              ) : (
-                <>
-                  <div className="flex flex-col items-center justify-center border-2 border-dashed border-input rounded-lg p-6 mb-4">
-                    {selectedFile ? (
-                      <div className="w-full">
-                        <div className="flex items-center p-3 bg-muted rounded-md">
-                          <FileText className="h-8 w-8 text-primary mr-3" />
-                          <div className="flex-1 min-w-0">
-                            <p className="font-medium truncate">{selectedFile.name}</p>
-                            <p className="text-xs text-muted-foreground">
-                              {(selectedFile.size / 1024).toFixed(1)} KB
-                            </p>
-                          </div>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => {
-                              setSelectedFile(null);
-                              if (fileInputRef.current) fileInputRef.current.value = "";
-                            }}
-                          >
-                            Remove
-                          </Button>
-                        </div>
-                      </div>
-                    ) : (
-                      <>
-                        <FileText className="h-12 w-12 text-primary/50 mb-4" />
-                        <h3 className="text-lg font-semibold mb-2">Upload File</h3>
-                        <p className="text-muted-foreground text-center mb-4">
-                          Upload PDF, DOCX, or CSV files to extract and solve math problems
-                        </p>
-                        <Button 
-                          variant="outline" 
-                          onClick={() => fileInputRef.current?.click()}
-                        >
-                          <Upload className="h-4 w-4 mr-2" /> Choose File
-                        </Button>
-                      </>
-                    )}
-                    <input
-                      type="file"
-                      ref={fileInputRef}
-                      className="hidden"
-                      accept=".pdf,.docx,.csv,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/csv"
-                      onChange={handleFileChange}
-                    />
-                  </div>
-                  <Button 
-                    onClick={handleFileSubmit} 
-                    disabled={!selectedFile || isLoading}
-                    className="w-full"
-                  >
-                    {isLoading ? "Processing..." : "Extract & Solve"}
-                  </Button>
-                </>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </div>
-    </Tabs>
+          <DialogFooter className="flex flex-col gap-2">
+            <Button
+              className="w-full"
+              onClick={() => {
+                setShowLoginPrompt(false);
+                navigate("/login");
+              }}
+            >
+              Log in / Sign up
+            </Button>
+            <Button
+              variant="outline"
+              className="w-full"
+              onClick={() => setShowLoginPrompt(false)}
+            >
+              Continue without login
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 };
 

@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Link, useNavigate } from "react-router-dom";
 import { Loader2, Mail, Lock } from "lucide-react";
+import UnifiedSolver from "@/components/UnifiedSolver";
 
 const Login = () => {
   const { signIn, signInWithGoogle, loading } = useAuth();

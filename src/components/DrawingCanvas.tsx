@@ -7,9 +7,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent } from '@/components/ui/card';
 import { InlineMath } from 'react-katex';
 import { groq } from '@/lib/groq-api';
+import { Textarea } from "@/components/ui/textarea";
 
 interface DrawingCanvasProps {
   onSave: (imageData: string) => void;
+  onClear: () => void;
 }
 
 // Mathematical shapes and symbols for recognition
@@ -34,7 +36,7 @@ const mathSymbols = {
   integral: [[0.7, 0], [0.5, 0.5], [0.7, 1], [0.3, 1]],
 };
 
-const DrawingCanvas: React.FC<DrawingCanvasProps> = ({ onSave }) => {
+const DrawingCanvas: React.FC<DrawingCanvasProps> = ({ onSave, onClear }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isDrawing, setIsDrawing] = useState(false);
   const [context, setContext] = useState<CanvasRenderingContext2D | null>(null);
@@ -50,6 +52,11 @@ const DrawingCanvas: React.FC<DrawingCanvasProps> = ({ onSave }) => {
   const [shapePreview, setShapePreview] = useState<{ x: number; y: number } | null>(null);
   const [recognizedText, setRecognizedText] = useState('');
   const [latexPreview, setLatexPreview] = useState('');
+  const [solution, setSolution] = useState<{
+    steps: string[];
+    answer: string;
+    explanation: string;
+  } | null>(null);
 
   // Initialize canvas
   useEffect(() => {
@@ -305,22 +312,17 @@ const DrawingCanvas: React.FC<DrawingCanvasProps> = ({ onSave }) => {
   };
 
   const handleClear = () => {
-    if (!context || !canvasRef.current) return;
-    
-    const canvas = canvasRef.current;
-    context.fillStyle = "#ffffff";
-    context.fillRect(0, 0, canvas.width, canvas.height);
-    
-    // Redraw grid
-    drawGrid(context, canvas.width, canvas.height);
-    
-    // Save cleared state
-    const clearedState = context.getImageData(0, 0, canvas.width, canvas.height);
-    
-    // Keep only the initial state and add the cleared state
-    setDrawingHistory([drawingHistory[0], clearedState]);
-    setHistoryIndex(1);
-    setHasDrawing(false);
+    if (canvasRef.current) {
+      const canvas = canvasRef.current;
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        setHasDrawing(false);
+        setDrawingHistory([]);
+        setHistoryIndex(-1);
+        onClear(); // Call the parent's clear function
+      }
+    }
   };
 
   const handleSave = () => {
@@ -363,6 +365,84 @@ const DrawingCanvas: React.FC<DrawingCanvasProps> = ({ onSave }) => {
     } catch (error) {
       console.error("Error processing drawing:", error);
       toast.error("Failed to process drawing");
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const recognizeMath = async () => {
+    if (!canvasRef.current) return;
+
+    try {
+      setIsProcessing(true);
+      toast.info("Processing your drawing...");
+
+      // Get canvas data as base64 image
+      const imageData = canvasRef.current.toDataURL('image/png');
+
+      // Create a Blob from the base64 image
+      const response = await fetch(imageData);
+      const blob = await response.blob();
+
+      // Create a File object from the Blob
+      const file = new File([blob], "math-drawing.png", { type: 'image/png' });
+
+      // Use Groq API to process the image
+      const text = await groq.recognizeMathFromImage(file);
+      setRecognizedText(text);
+
+      toast.success("Math expression recognized!");
+    } catch (error) {
+      console.error("Error recognizing math:", error);
+      toast.error("Failed to recognize math expression. Please try again with clearer writing.");
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const solveMath = async () => {
+    if (!recognizedText.trim()) {
+      toast.error("Please draw and recognize a math expression first");
+      return;
+    }
+
+    try {
+      setIsProcessing(true);
+      toast.info("Solving your math problem...");
+
+      const solution = await groq.recognizeMathFromText(`Solve the following math problem step by step and explain each step clearly:
+
+      ${recognizedText}
+
+      Provide your response in this format:
+      
+      SOLUTION:
+      1. [First step explanation]
+      2. [Second step explanation]
+      ...
+
+      ANSWER:
+      [Final answer]
+
+      EXPLANATION:
+      [Any additional explanations or diagrams needed]`);
+
+      // Parse the solution response
+      const solutionParts = solution.split('\n\n');
+      const steps = solutionParts.find(part => part.startsWith('SOLUTION:'))?.split('\n').slice(1) || [];
+      const answer = solutionParts.find(part => part.startsWith('ANSWER:'))?.split('\n')[1] || '';
+      const explanation = solutionParts.find(part => part.startsWith('EXPLANATION:'))?.split('\n').slice(1).join('\n') || '';
+
+      setSolution({
+        steps,
+        answer,
+        explanation
+      });
+
+      toast.success("Problem solved successfully!");
+    } catch (error) {
+      console.error("Error solving math:", error);
+      toast.error("Failed to solve the math problem. Please try again.");
     } finally {
       setIsProcessing(false);
     }
@@ -525,6 +605,52 @@ const DrawingCanvas: React.FC<DrawingCanvasProps> = ({ onSave }) => {
       >
         {isProcessing ? "Processing..." : "Process"}
       </Button>
+
+      <div className="flex justify-between">
+        <Button
+          onClick={recognizeMath}
+          disabled={isProcessing}
+          className="px-8"
+        >
+          {isProcessing ? "Processing..." : "Recognize Math"}
+        </Button>
+        <Button
+          onClick={solveMath}
+          disabled={isProcessing || !recognizedText.trim()}
+          className="px-8"
+        >
+          {isProcessing ? "Solving..." : "Solve"}
+        </Button>
+      </div>
+
+      {solution && (
+        <Card>
+          <CardContent className="p-6 space-y-4">
+            <div>
+              <h4 className="text-lg font-medium mb-3">Solution Steps:</h4>
+              <ol className="list-decimal list-inside space-y-2">
+                {solution.steps.map((step, index) => (
+                  <li key={index} className="text-base pl-2">
+                    {step}
+                  </li>
+                ))}
+              </ol>
+            </div>
+
+            <div className="pt-4 border-t">
+              <h4 className="text-lg font-medium mb-2">Final Answer:</h4>
+              <p className="text-base bg-muted/30 p-3 rounded-md">{solution.answer}</p>
+            </div>
+
+            {solution.explanation && (
+              <div className="pt-4 border-t">
+                <h4 className="text-lg font-medium mb-2">Additional Explanation:</h4>
+                <p className="text-base">{solution.explanation}</p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 };

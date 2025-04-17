@@ -2,9 +2,9 @@ import { useState } from "react";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Card, CardContent } from "../ui/card";
-import { generateGraphData } from "../../lib/groq-api";
 import { toast } from "../ui/sonner";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { generatePoints } from "../../lib/mathExpressionParser";
 
 export function GraphingTool() {
   const [expression, setExpression] = useState("");
@@ -12,7 +12,7 @@ export function GraphingTool() {
   const [data, setData] = useState<{ x: number; y: number }[]>([]);
   const [loading, setLoading] = useState(false);
 
-  const handleGraph = async () => {
+  const handleGraph = () => {
     if (!expression) {
       toast.error("Please enter an expression");
       return;
@@ -20,10 +20,19 @@ export function GraphingTool() {
 
     setLoading(true);
     try {
-      const points = await generateGraphData(expression, range);
+      // Extract the right side of the equation if it contains an equals sign
+      const expr = expression.includes('=') ? expression.split('=')[1].trim() : expression.trim();
+      const points = generatePoints(expr, range);
+      
+      if (points.length === 0) {
+        toast.error("Could not generate any valid points for this expression");
+        return;
+      }
+      
       setData(points);
     } catch (error) {
       toast.error("Failed to generate graph. Please check your expression.");
+      console.error("Graph error:", error);
     } finally {
       setLoading(false);
     }
@@ -37,8 +46,25 @@ export function GraphingTool() {
           <Input
             value={expression}
             onChange={(e) => setExpression(e.target.value)}
-            placeholder="Enter mathematical expression (e.g., x^2 + 2x + 1)"
+            placeholder="Enter mathematical expression (e.g., y = x^2 - 4x + 3)"
+            className="font-mono"
           />
+          <div className="text-xs space-y-1 text-muted-foreground">
+            <p>Supported features:</p>
+            <ul className="list-disc list-inside space-y-1 ml-2">
+              <li>Basic operators: +, -, *, /, ^ (or **) for exponents</li>
+              <li>Implicit multiplication: 2x, 2(x+1), (x+1)(x-1)</li>
+              <li>Math functions: sin, cos, tan, sqrt, abs, log, ln</li>
+              <li>Constants: PI, E</li>
+            </ul>
+            <p className="mt-2">Examples:</p>
+            <ul className="list-disc list-inside space-y-1 ml-2">
+              <li>y = x^2 - 4x + 3</li>
+              <li>sin(x) + 2cos(x)</li>
+              <li>2x^3 - 3x^2 + 4x - 5</li>
+              <li>(x+1)(x-1)</li>
+            </ul>
+          </div>
         </div>
 
         <div className="grid grid-cols-3 gap-4">

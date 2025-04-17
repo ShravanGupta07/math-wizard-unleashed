@@ -17,6 +17,10 @@ interface AuthContextType {
   signUp: (email: string, password: string, name: string) => Promise<void>;
   signOut: () => Promise<void>;
   isAuthenticated: boolean;
+  updatePassword: (currentPassword: string, newPassword: string) => Promise<void>;
+  deleteAccount: () => Promise<void>;
+  unlinkGoogle: () => Promise<void>;
+  updateProfile: (data: { name?: string; email?: string; photoURL?: string }) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -200,6 +204,124 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const updatePassword = async (currentPassword: string, newPassword: string) => {
+    try {
+      // First verify the current password by trying to sign in
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: user?.email || '',
+        password: currentPassword,
+      });
+
+      if (signInError) {
+        throw new Error('Current password is incorrect');
+      }
+
+      // Update the password
+      const { error } = await supabase.auth.updateUser({
+        password: newPassword
+      });
+
+      if (error) throw error;
+    } catch (error: any) {
+      console.error('Error updating password:', error);
+      throw error;
+    }
+  };
+
+  const deleteAccount = async () => {
+    try {
+      if (!user) throw new Error('No user logged in');
+
+      // Delete user data from profiles table
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .delete()
+        .eq('id', user.id);
+
+      if (profileError) throw profileError;
+
+      // Delete user authentication
+      const { error: authError } = await supabase.auth.admin.deleteUser(
+        user.id
+      );
+
+      if (authError) throw authError;
+    } catch (error: any) {
+      console.error('Error deleting account:', error);
+      throw error;
+    }
+  };
+
+  const unlinkGoogle = async () => {
+    try {
+      if (!user) throw new Error('No user logged in');
+
+      // Remove Google OAuth connection
+      const { error } = await supabase.auth.updateUser({
+        data: {
+          provider: null
+        }
+      });
+
+      if (error) throw error;
+    } catch (error: any) {
+      console.error('Error unlinking Google account:', error);
+      throw error;
+    }
+  };
+
+  const updateProfile = async (data: { name?: string; email?: string; photoURL?: string }) => {
+    try {
+      if (!user) throw new Error('No user logged in');
+
+      const updates: { [key: string]: any } = {};
+      let authUpdate = false;
+
+      // Handle email update through auth
+      if (data.email && data.email !== user.email) {
+        const { error: emailError } = await supabase.auth.updateUser({
+          email: data.email
+        });
+        if (emailError) throw emailError;
+        authUpdate = true;
+      }
+
+      // Update profile data
+      if (data.name || data.photoURL) {
+        const { error: profileError } = await supabase
+          .from('profiles')
+          .update({
+            name: data.name || user.name,
+            avatar_url: data.photoURL || user.photoURL
+          })
+          .eq('id', user.id);
+
+        if (profileError) throw profileError;
+      }
+
+      // Update local user state
+      setUser(prev => {
+        if (!prev) return null;
+        return {
+          ...prev,
+          email: data.email || prev.email,
+          name: data.name || prev.name,
+          photoURL: data.photoURL || prev.photoURL
+        };
+      });
+
+      toast.success(
+        authUpdate 
+          ? "Profile updated! Please check your email to confirm changes." 
+          : "Profile updated successfully!"
+      );
+    } catch (error: any) {
+      console.error('Error updating profile:', error);
+      toast.error(`Failed to update profile: ${error.message}`);
+      throw error;
+    }
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -210,6 +332,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         signUp,
         signOut,
         isAuthenticated: !!user,
+        updatePassword,
+        deleteAccount,
+        unlinkGoogle,
+        updateProfile,
       }}
     >
       {children}
