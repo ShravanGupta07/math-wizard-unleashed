@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -7,7 +7,31 @@ import { useNavigate } from "react-router-dom";
 import { toast } from "@/components/ui/sonner";
 import { motion } from "framer-motion";
 import { Calculator, Sigma, Ruler, BarChart2 } from "lucide-react";
-import { BlockMath } from 'react-katex';
+// Import KaTeX CSS from CDN
+import 'katex/dist/katex.min.css';
+
+// Define a custom BlockMath component that uses KaTeX directly
+const BlockMath = ({ math }: { math: string }) => {
+  const containerRef = React.useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    if (!containerRef.current || !window.katex) return;
+    
+    try {
+      window.katex.render(math, containerRef.current, {
+        displayMode: true,
+        throwOnError: false
+      });
+    } catch (error) {
+      console.error("KaTeX rendering error:", error);
+      if (containerRef.current) {
+        containerRef.current.textContent = math;
+      }
+    }
+  }, [math]);
+
+  return <div ref={containerRef} className="katex-block" />;
+};
 
 // Example problems by category
 const examples = {
@@ -88,9 +112,33 @@ const tabMeta = [
   { value: 'statistics', label: 'Statistics', icon: <BarChart2 className="h-5 w-5" /> },
 ];
 
+// Add katex to the window object
+declare global {
+  interface Window {
+    katex: any;
+  }
+}
+
 const Examples = () => {
   const [activeCategory, setActiveCategory] = useState("algebra");
   const navigate = useNavigate();
+  
+  // Load KaTeX from CDN
+  useEffect(() => {
+    if (window.katex) return;
+    
+    const script = document.createElement('script');
+    script.src = 'https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js';
+    script.async = true;
+    script.integrity = 'sha384-XjKyOOlGwcjNTAIQHIpgOno0Hl1YQqzUOEleOLALmuqehneUG+vnGctmUb0ZY0l8';
+    script.crossOrigin = 'anonymous';
+    
+    document.head.appendChild(script);
+    
+    return () => {
+      // Cleanup if needed
+    };
+  }, []);
   
   const handleTryExample = (problem: string) => {
     navigate("/");
@@ -158,7 +206,11 @@ const Examples = () => {
                       </div>
                     ) : (
                       <div className="bg-secondary/50 rounded-lg p-4 text-secondary-foreground border border-border overflow-x-auto max-w-full">
-                        <BlockMath math={example.problem.replace(/^(Solve for x:|Solve the system of equations:|Simplify the expression:|Find the derivative of f\(x\) =|Evaluate the indefinite integral:|Calculate the limit:)\s*/, '').trim()} />
+                        {window.katex ? (
+                          <BlockMath math={example.problem.replace(/^(Solve for x:|Solve the system of equations:|Simplify the expression:|Find the derivative of f\(x\) =|Evaluate the indefinite integral:|Calculate the limit:)\s*/, '').trim()} />
+                        ) : (
+                          <div className="text-center">{example.problem}</div>
+                        )}
                       </div>
                     )}
                   </div>
