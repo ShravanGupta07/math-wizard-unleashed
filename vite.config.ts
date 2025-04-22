@@ -5,6 +5,7 @@ import { componentTagger } from "lovable-tagger";
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
+  base: "./",
   server: {
     host: "::",
     port: 8080,
@@ -36,11 +37,21 @@ export default defineConfig(({ mode }) => ({
   },
   optimizeDeps: {
     include: ['react', 'react-dom', '@radix-ui/react-tooltip'],
-    exclude: ['@types/three', 'jspdf', 'html2canvas'],
+    exclude: [
+      '@types/three', 
+      'jspdf', 
+      'html2canvas',
+      '@radix-ui/react-progress',
+      '@radix-ui/react-label',
+      '@radix-ui/react-alert-dialog',
+      '@radix-ui/react-scroll-area',
+      '@radix-ui/react-tabs'
+    ],
   },
   build: {
     outDir: 'dist',
     emptyOutDir: true,
+    assetsDir: 'assets',
     commonjsOptions: {
       include: [/node_modules/],
     },
@@ -48,7 +59,15 @@ export default defineConfig(({ mode }) => ({
       external: [
         'jspdf',
         'html2canvas',
-        '@radix-ui/react-label'
+        '@radix-ui/react-label',
+        '@radix-ui/react-progress',
+        '@radix-ui/react-alert-dialog',
+        '@radix-ui/react-scroll-area',
+        '@radix-ui/react-tabs',
+        '@radix-ui/react-separator',
+        '@radix-ui/react-checkbox',
+        '@radix-ui/react-aspect-ratio',
+        '@radix-ui/react-select'
       ],
       output: {
         manualChunks: {
