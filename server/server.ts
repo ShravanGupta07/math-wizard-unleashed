@@ -25,7 +25,10 @@ const redis = new Redis();
 
 // Create Express app
 const app = express();
-app.use(cors());
+app.use(cors({
+  origin: process.env.CLIENT_URL || "*",
+  methods: ["GET", "POST"]
+}));
 app.use(express.json());
 
 // Create HTTP server
@@ -265,4 +268,10 @@ wss.on("connection", (ws) => {
       console.error("Error processing WebSocket message:", error);
     }
   });
+});
+
+// Make sure PORT is properly configured
+const PORT = process.env.PORT || 3001;
+server.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
 }); 
