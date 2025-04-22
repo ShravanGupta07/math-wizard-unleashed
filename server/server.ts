@@ -18,10 +18,20 @@ interface UserConnection {
   connections: Set<string>;
 }
 
-// Create Redis client for pub/sub
-const redisSub = new Redis();
-// Create Redis client for commands
-const redis = new Redis();
+// Create Redis client for pub/sub - handle possible Redis connection issues gracefully
+let redisSub;
+let redis;
+
+try {
+  // Create Redis client for pub/sub
+  redisSub = new Redis();
+  // Create Redis client for commands
+  redis = new Redis();
+  console.log("Redis clients created successfully");
+} catch (error) {
+  console.log("Redis connection failed, using in-memory storage instead:", error);
+  // Implement fallback storage if Redis is not available
+}
 
 // Create Express app
 const app = express();
@@ -44,19 +54,26 @@ console.log("WebSocket server listening on ws://0.0.0.0:4000");
 const clients = new Set<WebSocket>();
 const activeUsers = new Map<string, UserConnection>(); // userId -> UserConnection
 
+// In-memory storage for when Redis is not available
+const inMemoryQueries = [];
+
 // Initialize server
 const init = async () => {
   try {
-    // Check Redis connection
-    await redis.ping();
-    console.log("Connected to Redis successfully");
-    
-    // Get current data count
-    const count = await redis.llen("math_queries");
-    console.log(`Found ${count} existing queries in Redis`);
+    if (redis) {
+      // Check Redis connection
+      await redis.ping();
+      console.log("Connected to Redis successfully");
+      
+      // Get current data count
+      const count = await redis.llen("math_queries");
+      console.log(`Found ${count} existing queries in Redis`);
+    } else {
+      console.log("Using in-memory storage for queries");
+    }
   } catch (err) {
     console.error("Failed to initialize Redis connection:", err);
-    process.exit(1);
+    console.log("Using in-memory storage for queries");
   }
 };
 
@@ -88,31 +105,33 @@ const broadcastActiveUsers = () => {
   });
 };
 
-// Subscribe to Redis channel for Fluvio events
-redisSub.subscribe("fluvio_math_events", (err) => {
-  if (err) {
-    console.error("Failed to subscribe to Redis channel:", err);
-    return;
-  }
-  console.log("Subscribed to Redis channel: fluvio_math_events");
-});
+// Subscribe to Redis channel for events if Redis is available
+if (redisSub) {
+  redisSub.subscribe("fluvio_math_events", (err) => {
+    if (err) {
+      console.error("Failed to subscribe to Redis channel:", err);
+      return;
+    }
+    console.log("Subscribed to Redis channel: fluvio_math_events");
+  });
 
-redisSub.on("message", (channel, message) => {
-  if (channel === "fluvio_math_events") {
-    console.log("Received message from Fluvio via Redis:", message);
-    // Broadcast to all WebSocket clients
-    const event = JSON.parse(message);
-    const formattedMessage = JSON.stringify({
-      type: 'query_event',
-      data: event
-    });
-    clients.forEach((client) => {
-      if (client.readyState === WebSocket.OPEN) {
-        client.send(formattedMessage);
-      }
-    });
-  }
-});
+  redisSub.on("message", (channel, message) => {
+    if (channel === "fluvio_math_events") {
+      console.log("Received message from Redis channel:", message);
+      // Broadcast to all WebSocket clients
+      const event = JSON.parse(message);
+      const formattedMessage = JSON.stringify({
+        type: 'query_event',
+        data: event
+      });
+      clients.forEach((client) => {
+        if (client.readyState === WebSocket.OPEN) {
+          client.send(formattedMessage);
+        }
+      });
+    }
+  });
+}
 
 // Handle POST /event endpoint
 app.post("/event", async (req: Request, res: Response) => {
@@ -125,10 +144,20 @@ app.post("/event", async (req: Request, res: Response) => {
       event.id = `${event.timestamp}-${Math.random().toString(36).substr(2, 9)}`;
     }
 
-    // Store event in Redis
+    // Store event in Redis or in-memory
     const eventString = JSON.stringify(event);
-    await redis.lpush("math_queries", eventString);
-    console.log("Stored event in Redis:", eventString);
+    if (redis) {
+      try {
+        await redis.lpush("math_queries", eventString);
+        console.log("Stored event in Redis:", eventString);
+      } catch (error) {
+        console.error("Error storing in Redis, using in-memory:", error);
+        inMemoryQueries.push(event);
+      }
+    } else {
+      inMemoryQueries.push(event);
+      console.log("Stored event in-memory:", eventString);
+    }
 
     // Broadcast directly to WebSocket clients
     const message = JSON.stringify({
@@ -230,21 +259,35 @@ wss.on("connection", (ws) => {
         
         // Send recent events to the new connection
         try {
-          const events = await redis.lrange("math_queries", 0, 99);
-          console.log(`Found ${events.length} events in Redis`);
+          let recentEvents = [];
           
-          if (events.length > 0) {
-            const recentEvents = events
-              .map(event => JSON.parse(event))
-              .reverse(); // Most recent first
-            
+          if (redis) {
+            try {
+              const events = await redis.lrange("math_queries", 0, 99);
+              console.log(`Found ${events.length} events in Redis`);
+              
+              if (events.length > 0) {
+                recentEvents = events
+                  .map(event => JSON.parse(event))
+                  .reverse(); // Most recent first
+              }
+            } catch (error) {
+              console.error("Error fetching from Redis, using in-memory events:", error);
+              recentEvents = [...inMemoryQueries].reverse();
+            }
+          } else {
+            recentEvents = [...inMemoryQueries].reverse();
+            console.log(`Found ${recentEvents.length} events in memory`);
+          }
+          
+          if (recentEvents.length > 0) {
             console.log('Sending initial events to client:', recentEvents);
             ws.send(JSON.stringify({
               type: 'initial_events',
               data: recentEvents
             }));
           } else {
-            console.log('No events found in Redis');
+            console.log('No events found');
           }
         } catch (error) {
           console.error("Error fetching recent events:", error);
@@ -268,6 +311,11 @@ wss.on("connection", (ws) => {
       console.error("Error processing WebSocket message:", error);
     }
   });
+});
+
+// Health check endpoint
+app.get("/health", (req: Request, res: Response) => {
+  res.status(200).json({ status: "ok" });
 });
 
 // Make sure PORT is properly configured

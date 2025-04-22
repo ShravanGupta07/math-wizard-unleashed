@@ -10,7 +10,6 @@
     "socket-server": "ts-node socket-server.ts"
   },
   "dependencies": {
-    "@fluvio/client": "^0.16.0",
     "@types/cors": "^2.8.17",
     "@types/express": "^5.0.1",
     "cors": "^2.8.5",
