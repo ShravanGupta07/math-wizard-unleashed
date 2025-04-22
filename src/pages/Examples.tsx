@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -7,14 +7,14 @@ import { useNavigate } from "react-router-dom";
 import { toast } from "@/components/ui/sonner";
 import { motion } from "framer-motion";
 import { Calculator, Sigma, Ruler, BarChart2 } from "lucide-react";
-// Import KaTeX CSS from CDN
-import 'katex/dist/katex.min.css';
+// Import KaTeX CSS inline to avoid module resolution issues
+// We'll load the styles in the useEffect hook instead
 
 // Define a custom BlockMath component that uses KaTeX directly
 const BlockMath = ({ math }: { math: string }) => {
-  const containerRef = React.useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (!containerRef.current || !window.katex) return;
     
     try {
@@ -127,12 +127,20 @@ const Examples = () => {
   useEffect(() => {
     if (window.katex) return;
     
+    // Add KaTeX CSS
+    const link = document.createElement('link');
+    link.rel = 'stylesheet';
+    link.href = 'https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css';
+    link.integrity = 'sha384-n8MVd4RsNIU0tAv4ct0nTaAbDJwPJzDEaqSD1odI+WdtXRGWt2kTvGFasHpSy3SV';
+    link.crossOrigin = 'anonymous';
+    document.head.appendChild(link);
+    
+    // Add KaTeX JS
     const script = document.createElement('script');
     script.src = 'https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js';
     script.async = true;
     script.integrity = 'sha384-XjKyOOlGwcjNTAIQHIpgOno0Hl1YQqzUOEleOLALmuqehneUG+vnGctmUb0ZY0l8';
     script.crossOrigin = 'anonymous';
-    
     document.head.appendChild(script);
     
     return () => {
