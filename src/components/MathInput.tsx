@@ -10,7 +10,8 @@ import VoiceRecorder from "./VoiceRecorder";
 import DrawingCanvas from "./DrawingCanvas";
 // Import react-katex but load CSS dynamically
 import { InlineMath } from 'react-katex';
-import { createWorker, PSM } from 'tesseract.js';
+// Remove direct import of Tesseract.js
+// import { createWorker, PSM } from 'tesseract.js';
 import { groq } from "../lib/groq-api";
 import { LineChart, PenLine } from "lucide-react";
 import LatexInput from "./LatexInput";
@@ -22,6 +23,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 declare global {
   interface Window {
     katex: any;
+    Tesseract: any;
   }
 }
 
@@ -39,9 +41,9 @@ interface MathInputProps {
 }
 
 const MathInput: React.FC<MathInputProps> = ({ onSubmit, isLoading, onClear }) => {
-  // Add useEffect to load KaTeX CSS from CDN
+  // Add useEffect to load required external libraries from CDN
   useEffect(() => {
-    // Add KaTeX CSS if not already added
+    // Load KaTeX CSS
     if (!document.querySelector('link[href*="katex.min.css"]')) {
       const link = document.createElement('link');
       link.rel = 'stylesheet';
@@ -49,6 +51,14 @@ const MathInput: React.FC<MathInputProps> = ({ onSubmit, isLoading, onClear }) =
       link.integrity = 'sha384-n8MVd4RsNIU0tAv4ct0nTaAbDJwPJzDEaqSD1odI+WdtXRGWt2kTvGFasHpSy3SV';
       link.crossOrigin = 'anonymous';
       document.head.appendChild(link);
+    }
+    
+    // Load Tesseract.js from CDN if not already loaded
+    if (!window.Tesseract && typeof document !== 'undefined') {
+      const script = document.createElement('script');
+      script.src = 'https://unpkg.com/tesseract.js@4.1.1/dist/tesseract.min.js';
+      script.async = true;
+      document.head.appendChild(script);
     }
   }, []);
 
@@ -119,18 +129,23 @@ const MathInput: React.FC<MathInputProps> = ({ onSubmit, isLoading, onClear }) =
     try {
       setIsProcessing(true);
       
-      // Create and initialize worker
-      const worker = await createWorker();
-      await worker.load();
-      await worker.reinitialize('eng');
+      if (!window.Tesseract) {
+        toast.error("Image processing library is still loading. Please try again in a moment.");
+        setIsProcessing(false);
+        return;
+      }
+      
+      toast.info("Reading image...");
+      
+      // Use the global Tesseract object loaded from CDN
+      const worker = await window.Tesseract.createWorker('eng');
       
       // Configure worker for math symbols
       await worker.setParameters({
         tessedit_char_whitelist: '0123456789+-×÷=()[]{}<>√π∞abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ',
-        tessedit_pageseg_mode: PSM.SINGLE_BLOCK,
+        tessedit_pageseg_mode: window.Tesseract.PSM.SINGLE_BLOCK,
       });
 
-      toast.info("Reading image...");
       const { data: { text } } = await worker.recognize(file);
       
       if (!text) {
@@ -148,8 +163,8 @@ const MathInput: React.FC<MathInputProps> = ({ onSubmit, isLoading, onClear }) =
         toast.error("Image is unclear. Please upload a clearer image with better lighting and contrast.");
         setIsProcessing(false);
         await worker.terminate();
-      return;
-    }
+        return;
+      }
 
       toast.info("Converting to LaTeX...");
       // Convert to LaTeX and get solution
