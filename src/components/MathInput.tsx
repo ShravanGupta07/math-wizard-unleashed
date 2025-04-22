@@ -250,7 +250,7 @@ const MathInput: React.FC<MathInputProps> = ({ onSubmit, isLoading, onClear }) =
     onSubmit({
         problem: transcribedText,
         type: "voice",
-        content: await readFileAsBase64(audioFile),
+        content: undefined
     });
     } catch (error) {
       console.error("Error processing voice recording:", error);
@@ -495,7 +495,7 @@ const MathInput: React.FC<MathInputProps> = ({ onSubmit, isLoading, onClear }) =
       onSubmit({
         problem: transcribedText,
         type: "voice",
-        content: null
+        content: undefined
       });
 
       toast.success("Problem solved successfully!");
