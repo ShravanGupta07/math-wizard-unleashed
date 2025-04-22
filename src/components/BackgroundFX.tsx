@@ -1,25 +1,76 @@
 import { useEffect, useRef, useState } from 'react';
 import { useTheme } from './theme-provider';
 
+// Define the window interface to include the VANTA object
+declare global {
+  interface Window {
+    VANTA: any;
+    THREE: any;
+  }
+}
+
 export default function BackgroundFX() {
   const [vantaEffect, setVantaEffect] = useState<any>(null);
   const vantaRef = useRef<HTMLDivElement>(null);
   const { resolvedTheme } = useTheme();
+  const [scriptsLoaded, setScriptsLoaded] = useState(false);
 
+  // Load scripts from CDN
+  useEffect(() => {
+    const loadScripts = async () => {
+      // Skip if already loaded
+      if (window.VANTA && window.THREE) {
+        setScriptsLoaded(true);
+        return;
+      }
+
+      try {
+        // Load Three.js from CDN
+        const threeScript = document.createElement('script');
+        threeScript.src = 'https://cdnjs.cloudflare.com/ajax/libs/three.js/0.158.0/three.min.js';
+        threeScript.async = true;
+        document.head.appendChild(threeScript);
+
+        // Wait for Three.js to load
+        await new Promise<void>((resolve) => {
+          threeScript.onload = () => resolve();
+        });
+
+        // Load Vanta Birds from CDN
+        const vantaScript = document.createElement('script');
+        vantaScript.src = 'https://cdn.jsdelivr.net/npm/vanta@0.5.24/dist/vanta.birds.min.js';
+        vantaScript.async = true;
+        document.head.appendChild(vantaScript);
+
+        // Wait for Vanta to load
+        await new Promise<void>((resolve) => {
+          vantaScript.onload = () => resolve();
+        });
+
+        setScriptsLoaded(true);
+      } catch (error) {
+        console.error('Failed to load scripts:', error);
+      }
+    };
+
+    loadScripts();
+
+    // Cleanup function to remove scripts on unmount
+    return () => {
+      // We don't remove the scripts as they might be used elsewhere
+    };
+  }, []);
+
+  // Initialize Vanta effect once scripts are loaded
   useEffect(() => {
     let effectInstance: any;
 
-    const initVanta = async () => {
-      if (!vantaRef.current) return;
+    const initVanta = () => {
+      if (!vantaRef.current || !scriptsLoaded || !window.VANTA) return;
 
-      const [THREE, VANTA] = await Promise.all([
-        import('three'),
-        import('vanta/dist/vanta.birds.min')
-      ]);
-
-      effectInstance = VANTA.default({
+      effectInstance = window.VANTA.BIRDS({
         el: vantaRef.current,
-        THREE: THREE.default,
+        THREE: window.THREE,
         mouseControls: true,
         touchControls: true,
         gyroControls: false,
@@ -49,12 +100,15 @@ export default function BackgroundFX() {
       setVantaEffect(null);
     }
 
-    initVanta();
+    // Only initialize if scripts are loaded
+    if (scriptsLoaded) {
+      initVanta();
+    }
 
     return () => {
       if (effectInstance) effectInstance.destroy();
     };
-  }, [resolvedTheme]);
+  }, [resolvedTheme, scriptsLoaded]);
 
   return (
     <div
