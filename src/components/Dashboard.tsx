@@ -158,6 +158,9 @@ export const Dashboard = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
   
+  // Add state for tracking Recharts loading
+  const [rechartsLoaded, setRechartsLoaded] = useState(false);
+  
   // State for collaborative room
   const [userName, setUserName] = useState<string>(() => localStorage.getItem("userName") || "");
   const [roomCode, setRoomCode] = useState<string>("");
@@ -191,33 +194,48 @@ export const Dashboard = () => {
     });
   }, []);
 
-  // Load recharts dynamically from CDN
+  // Dynamic import of Recharts
   useEffect(() => {
-    if (!window.Recharts) {
-      const script = document.createElement('script');
-      script.src = 'https://unpkg.com/recharts@2.9.3/umd/Recharts.min.js';
-      script.async = true;
-      script.onload = () => {
-        if (window.Recharts) {
-          ResponsiveContainer = window.Recharts.ResponsiveContainer;
-          PieChart = window.Recharts.PieChart;
-          Pie = window.Recharts.Pie;
-          BarChart = window.Recharts.BarChart;
-          Bar = window.Recharts.Bar;
-          XAxis = window.Recharts.XAxis;
-          YAxis = window.Recharts.YAxis;
-          CartesianGrid = window.Recharts.CartesianGrid;
-          Legend = window.Recharts.Legend;
-          LineChart = window.Recharts.LineChart;
-          Line = window.Recharts.Line;
-          Cell = window.Recharts.Cell;
-          Tooltip = window.Recharts.Tooltip;
-          // Force a re-render
-          setData((prevData: QueryEvent[]) => [...prevData]);
+    let mounted = true;
+    
+    const loadRecharts = async () => {
+      try {
+        // Import Recharts components dynamically
+        const recharts = await import('recharts');
+        
+        // Set Recharts components to window
+        if (mounted) {
+          window.Recharts = recharts;
+          
+          // Assign components
+          ResponsiveContainer = recharts.ResponsiveContainer;
+          PieChart = recharts.PieChart;
+          Pie = recharts.Pie;
+          BarChart = recharts.BarChart;
+          Bar = recharts.Bar;
+          XAxis = recharts.XAxis;
+          YAxis = recharts.YAxis;
+          CartesianGrid = recharts.CartesianGrid;
+          Legend = recharts.Legend;
+          LineChart = recharts.LineChart;
+          Line = recharts.Line;
+          Cell = recharts.Cell;
+          Tooltip = recharts.Tooltip;
+          
+          // Force re-render
+          setRechartsLoaded(true);
+          setData(prevData => [...prevData]);
         }
-      };
-      document.body.appendChild(script);
-    }
+      } catch (error) {
+        console.error('Failed to load Recharts:', error);
+      }
+    };
+
+    loadRecharts();
+
+    return () => {
+      mounted = false;
+    };
   }, []);
 
   // Handle WebSocket messages
@@ -637,7 +655,7 @@ export const Dashboard = () => {
                       <Legend 
                         verticalAlign="bottom" 
                         height={36}
-                        content={({ payload }: { payload?: Array<any> }) => (
+                        content={({ payload }: { payload?: Array<{ color: string; value: string }> }) => (
                           <div className="flex flex-wrap justify-center gap-4 pt-4">
                             {payload?.map((entry, index) => (
                               <div key={`legend-${index}`} className="flex items-center gap-2">
@@ -812,7 +830,7 @@ export const Dashboard = () => {
                     <Legend 
                       verticalAlign="bottom" 
                       height={36}
-                      content={({ payload }: { payload?: Array<any> }) => (
+                      content={({ payload }: { payload?: Array<{ color: string; value: string }> }) => (
                         <div className="flex flex-wrap justify-center gap-4 pt-4">
                           {payload?.map((entry, index) => (
                             <div key={`legend-${index}`} className="flex items-center gap-2">
