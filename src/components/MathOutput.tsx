@@ -7,7 +7,8 @@ import { useHistory } from "../contexts/HistoryContext";
 import { useAuth } from "../contexts/AuthContext";
 import { MathProblem, MathSolution } from "../lib/groq-api";
 import { InputType, ToolType } from "../types/history";
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ScatterChart, Scatter, AreaChart, Area } from "recharts";
+// Remove direct import of Recharts and use CDN loading instead
+// import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ScatterChart, Scatter, AreaChart, Area } from "recharts";
 import { Clock, Copy, Download, ThumbsUp, Info, BookOpen, ChevronRight, Lightbulb, FileText, Brain, CheckCircle, List, Target } from "lucide-react";
 import { toast } from "./ui/sonner";
 import { supabase } from "../integrations/supabase/client";
@@ -18,6 +19,26 @@ import html2canvas from "html2canvas";
 import { motion, AnimatePresence } from "framer-motion";
 import { Separator } from './ui/separator';
 import { ScrollArea } from './ui/scroll-area';
+
+// Define Recharts component placeholders
+declare global {
+  interface Window {
+    Recharts: any;
+  }
+}
+
+// Define placeholders for Recharts components
+let LineChart: any = () => <div>Loading chart...</div>;
+let Line: any = () => null;
+let XAxis: any = () => null;
+let YAxis: any = () => null;
+let CartesianGrid: any = () => null;
+let Tooltip: any = () => null;
+let ResponsiveContainer: any = ({ children }: { children: React.ReactNode }) => <div>{children}</div>;
+let ScatterChart: any = () => <div>Loading chart...</div>;
+let Scatter: any = () => null;
+let AreaChart: any = () => <div>Loading chart...</div>;
+let Area: any = () => null;
 
 // Modern color palette with better contrast
 const CHART_COLORS = {
@@ -162,6 +183,50 @@ const MathOutput: React.FC<MathOutputProps> = ({ problem, solution, loading }) =
   const [solutionSaved, setSolutionSaved] = useState(false);
   const [visibleHints, setVisibleHints] = useState(0);
   const [chartType, setChartType] = useState<'line' | 'scatter' | 'area'>('line');
+  const [rechartsLoaded, setRechartsLoaded] = useState(false);
+  
+  // Load Recharts from CDN
+  useEffect(() => {
+    if (typeof window !== 'undefined' && !window.Recharts) {
+      const script = document.createElement('script');
+      script.src = 'https://unpkg.com/recharts@2.9.3/umd/Recharts.min.js';
+      script.async = true;
+      script.onload = () => {
+        if (window.Recharts) {
+          // Assign Recharts components
+          LineChart = window.Recharts.LineChart;
+          Line = window.Recharts.Line;
+          XAxis = window.Recharts.XAxis;
+          YAxis = window.Recharts.YAxis;
+          CartesianGrid = window.Recharts.CartesianGrid;
+          Tooltip = window.Recharts.Tooltip;
+          ResponsiveContainer = window.Recharts.ResponsiveContainer;
+          ScatterChart = window.Recharts.ScatterChart;
+          Scatter = window.Recharts.Scatter;
+          AreaChart = window.Recharts.AreaChart;
+          Area = window.Recharts.Area;
+          
+          setRechartsLoaded(true);
+        }
+      };
+      document.head.appendChild(script);
+    } else if (window.Recharts) {
+      // If Recharts is already loaded, use it
+      LineChart = window.Recharts.LineChart;
+      Line = window.Recharts.Line;
+      XAxis = window.Recharts.XAxis;
+      YAxis = window.Recharts.YAxis;
+      CartesianGrid = window.Recharts.CartesianGrid;
+      Tooltip = window.Recharts.Tooltip;
+      ResponsiveContainer = window.Recharts.ResponsiveContainer;
+      ScatterChart = window.Recharts.ScatterChart;
+      Scatter = window.Recharts.Scatter;
+      AreaChart = window.Recharts.AreaChart;
+      Area = window.Recharts.Area;
+      
+      setRechartsLoaded(true);
+    }
+  }, []);
   
   // Determine the best chart type based on the data and topic
   useEffect(() => {
