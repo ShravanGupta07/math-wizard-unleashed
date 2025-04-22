@@ -198,40 +198,55 @@ export const Dashboard = () => {
   useEffect(() => {
     let mounted = true;
     
-    const loadRecharts = async () => {
-      try {
-        // Import Recharts components dynamically
-        const recharts = await import('recharts');
-        
-        // Set Recharts components to window
-        if (mounted) {
-          window.Recharts = recharts;
-          
-          // Assign components
-          ResponsiveContainer = recharts.ResponsiveContainer;
-          PieChart = recharts.PieChart;
-          Pie = recharts.Pie;
-          BarChart = recharts.BarChart;
-          Bar = recharts.Bar;
-          XAxis = recharts.XAxis;
-          YAxis = recharts.YAxis;
-          CartesianGrid = recharts.CartesianGrid;
-          Legend = recharts.Legend;
-          LineChart = recharts.LineChart;
-          Line = recharts.Line;
-          Cell = recharts.Cell;
-          Tooltip = recharts.Tooltip;
+    // Load Recharts from CDN
+    if (!window.Recharts && typeof document !== 'undefined') {
+      // Create script element to load Recharts from CDN
+      const script = document.createElement('script');
+      script.src = 'https://unpkg.com/recharts@2.9.3/umd/Recharts.min.js';
+      script.async = true;
+      script.onload = () => {
+        if (window.Recharts && mounted) {
+          // Assign components from window.Recharts
+          ResponsiveContainer = window.Recharts.ResponsiveContainer;
+          PieChart = window.Recharts.PieChart;
+          Pie = window.Recharts.Pie;
+          BarChart = window.Recharts.BarChart;
+          Bar = window.Recharts.Bar;
+          XAxis = window.Recharts.XAxis;
+          YAxis = window.Recharts.YAxis;
+          CartesianGrid = window.Recharts.CartesianGrid;
+          Legend = window.Recharts.Legend;
+          LineChart = window.Recharts.LineChart;
+          Line = window.Recharts.Line;
+          Cell = window.Recharts.Cell;
+          Tooltip = window.Recharts.Tooltip;
           
           // Force re-render
           setRechartsLoaded(true);
           setData(prevData => [...prevData]);
         }
-      } catch (error) {
-        console.error('Failed to load Recharts:', error);
-      }
-    };
-
-    loadRecharts();
+      };
+      
+      // Append script to document
+      document.head.appendChild(script);
+    } else if (window.Recharts) {
+      // Recharts already loaded
+      ResponsiveContainer = window.Recharts.ResponsiveContainer;
+      PieChart = window.Recharts.PieChart;
+      Pie = window.Recharts.Pie;
+      BarChart = window.Recharts.BarChart;
+      Bar = window.Recharts.Bar;
+      XAxis = window.Recharts.XAxis;
+      YAxis = window.Recharts.YAxis;
+      CartesianGrid = window.Recharts.CartesianGrid;
+      Legend = window.Recharts.Legend;
+      LineChart = window.Recharts.LineChart;
+      Line = window.Recharts.Line;
+      Cell = window.Recharts.Cell;
+      Tooltip = window.Recharts.Tooltip;
+      
+      setRechartsLoaded(true);
+    }
 
     return () => {
       mounted = false;
