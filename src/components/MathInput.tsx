@@ -1,4 +1,4 @@
-import { useState, useRef, ChangeEvent } from "react";
+import React, { useState, useRef, ChangeEvent, useEffect } from "react";
 import { Button } from "./ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 import { Textarea } from "./ui/textarea";
@@ -8,7 +8,7 @@ import { useAuth } from "../contexts/AuthContext";
 import { Camera, FileText, Mic, PenTool, Upload, Calculator, X } from "lucide-react";
 import VoiceRecorder from "./VoiceRecorder";
 import DrawingCanvas from "./DrawingCanvas";
-import 'katex/dist/katex.min.css';
+// Import react-katex but load CSS dynamically
 import { InlineMath } from 'react-katex';
 import { createWorker, PSM } from 'tesseract.js';
 import { groq } from "../lib/groq-api";
@@ -17,6 +17,13 @@ import LatexInput from "./LatexInput";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "./ui/dialog";
+
+// Add KaTeX type declaration for window global
+declare global {
+  interface Window {
+    katex: any;
+  }
+}
 
 interface MathProblem {
   problem: string;
@@ -32,6 +39,19 @@ interface MathInputProps {
 }
 
 const MathInput: React.FC<MathInputProps> = ({ onSubmit, isLoading, onClear }) => {
+  // Add useEffect to load KaTeX CSS from CDN
+  useEffect(() => {
+    // Add KaTeX CSS if not already added
+    if (!document.querySelector('link[href*="katex.min.css"]')) {
+      const link = document.createElement('link');
+      link.rel = 'stylesheet';
+      link.href = 'https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css';
+      link.integrity = 'sha384-n8MVd4RsNIU0tAv4ct0nTaAbDJwPJzDEaqSD1odI+WdtXRGWt2kTvGFasHpSy3SV';
+      link.crossOrigin = 'anonymous';
+      document.head.appendChild(link);
+    }
+  }, []);
+
   const [inputMethod, setInputMethod] = useState<"text" | "image" | "voice" | "latex" | "file">("text");
   const [textInput, setTextInput] = useState("");
   const [latexPreview, setLatexPreview] = useState("");
