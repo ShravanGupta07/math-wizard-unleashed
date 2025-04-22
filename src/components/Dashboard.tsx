@@ -223,7 +223,7 @@ export const Dashboard = () => {
           
           // Force re-render
           setRechartsLoaded(true);
-          setData(prevData => [...prevData]);
+          setData((prevData: QueryEvent[]) => [...prevData]);
         }
       };
       
@@ -670,7 +670,7 @@ export const Dashboard = () => {
                       <Legend 
                         verticalAlign="bottom" 
                         height={36}
-                        content={({ payload }: { payload?: Array<{ color: string; value: string }> }) => (
+                        content={({ payload }: { payload?: Array<{ color: string; value: string; name?: string; percent?: number }> }) => (
                           <div className="flex flex-wrap justify-center gap-4 pt-4">
                             {payload?.map((entry, index) => (
                               <div key={`legend-${index}`} className="flex items-center gap-2">
@@ -845,7 +845,7 @@ export const Dashboard = () => {
                     <Legend 
                       verticalAlign="bottom" 
                       height={36}
-                      content={({ payload }: { payload?: Array<{ color: string; value: string }> }) => (
+                      content={({ payload }: { payload?: Array<{ color: string; value: string; name?: string; percent?: number }> }) => (
                         <div className="flex flex-wrap justify-center gap-4 pt-4">
                           {payload?.map((entry, index) => (
                             <div key={`legend-${index}`} className="flex items-center gap-2">
