@@ -1,11 +1,38 @@
-import React, { useEffect, useRef } from 'react';
-import * as THREE from 'three';
+import React, { useEffect, useRef, useState } from 'react';
+// Remove direct import of Three.js
+// import * as THREE from 'three';
+
+// Add Three.js to Window interface
+declare global {
+  interface Window {
+    THREE: any;
+  }
+}
 
 const WizardCanvas: React.FC = () => {
   const mountRef = useRef<HTMLDivElement>(null);
+  const [threeLoaded, setThreeLoaded] = useState(false);
   
+  // Load Three.js from CDN
   useEffect(() => {
-    if (!mountRef.current) return;
+    if (typeof window !== 'undefined' && !window.THREE) {
+      const script = document.createElement('script');
+      script.src = 'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js';
+      script.async = true;
+      script.onload = () => {
+        setThreeLoaded(true);
+      };
+      document.head.appendChild(script);
+    } else if (window.THREE) {
+      setThreeLoaded(true);
+    }
+  }, []);
+  
+  // Main Three.js setup effect
+  useEffect(() => {
+    if (!mountRef.current || !threeLoaded) return;
+    
+    const THREE = window.THREE;
 
     // Scene setup
     const scene = new THREE.Scene();
@@ -84,7 +111,7 @@ const WizardCanvas: React.FC = () => {
     scene.add(ring2);
     
     // Small orbital particles
-    const particles: THREE.Mesh[] = [];
+    const particles: any[] = [];
     const particleGeometry = new THREE.SphereGeometry(0.08, 16, 16);
     const particleMaterials = [
       new THREE.MeshStandardMaterial({ color: 0x33aaff, emissive: 0x3366ff }),
@@ -192,14 +219,20 @@ const WizardCanvas: React.FC = () => {
       
       renderer.dispose();
     };
-  }, []);
+  }, [threeLoaded]);
   
   return (
     <div 
       ref={mountRef} 
       className="w-full h-full rounded-lg"
       style={{ background: 'transparent' }}
-    />
+    >
+      {!threeLoaded && (
+        <div className="flex items-center justify-center w-full h-full text-muted-foreground">
+          Loading 3D elements...
+        </div>
+      )}
+    </div>
   );
 };
 

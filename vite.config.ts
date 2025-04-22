@@ -45,7 +45,8 @@ export default defineConfig(({ mode }) => ({
       '@radix-ui/react-label',
       '@radix-ui/react-alert-dialog',
       '@radix-ui/react-scroll-area',
-      '@radix-ui/react-tabs'
+      '@radix-ui/react-tabs',
+      'three'
     ],
   },
   build: {
@@ -67,7 +68,8 @@ export default defineConfig(({ mode }) => ({
         '@radix-ui/react-separator',
         '@radix-ui/react-checkbox',
         '@radix-ui/react-aspect-ratio',
-        '@radix-ui/react-select'
+        '@radix-ui/react-select',
+        'three'
       ],
       output: {
         manualChunks: {
