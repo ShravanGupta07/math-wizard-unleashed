@@ -36,11 +36,26 @@ export default defineConfig(({ mode }) => ({
   },
   optimizeDeps: {
     include: ['react', 'react-dom', '@radix-ui/react-tooltip'],
-    exclude: ['@types/three'],
+    exclude: ['@types/three', 'jspdf', 'html2canvas'],
   },
   build: {
+    outDir: 'dist',
+    emptyOutDir: true,
     commonjsOptions: {
       include: [/node_modules/],
     },
+    rollupOptions: {
+      external: [
+        'jspdf',
+        'html2canvas',
+        '@radix-ui/react-label'
+      ],
+      output: {
+        manualChunks: {
+          vendor: ['react', 'react-dom'],
+          ui: ['@radix-ui/react-dialog', '@radix-ui/react-dropdown-menu', '@radix-ui/react-tooltip']
+        }
+      }
+    }
   },
 }));
