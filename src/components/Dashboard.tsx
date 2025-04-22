@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo, useCallback } from "react";
-import { PieChart, Pie, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid, Legend, ResponsiveContainer, LineChart, Line, Cell } from 'recharts';
+// Remove direct import of recharts components and use dynamic loading instead
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
@@ -15,6 +15,33 @@ import { Label } from "./ui/label";
 import { v4 as uuidv4 } from 'uuid';
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
+
+// Types for recharts components that will be loaded dynamically
+declare global {
+  interface Window {
+    Recharts: any;
+  }
+}
+
+// Define placeholder components that will be replaced with actual recharts components
+const Placeholder = ({ children }: { children?: React.ReactNode }) => {
+  return <div className="flex items-center justify-center h-full text-muted-foreground">Loading chart components...</div>;
+};
+
+// Declare recharts components with default placeholders
+let ResponsiveContainer = Placeholder as any;
+let PieChart = Placeholder as any;
+let Pie = Placeholder as any;
+let BarChart = Placeholder as any;
+let Bar = Placeholder as any;
+let XAxis = Placeholder as any;
+let YAxis = Placeholder as any;
+let CartesianGrid = Placeholder as any;
+let Legend = Placeholder as any;
+let Line = Placeholder as any;
+let LineChart = Placeholder as any;
+let Cell = Placeholder as any;
+let Tooltip = Placeholder as any;
 
 interface QueryEvent {
   id: string;
@@ -89,6 +116,39 @@ const CHART_COLORS = {
   }
 };
 
+const CELL_COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8', '#83A6ED'];
+
+const renderCustomizedLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, percent, name }: { 
+  cx?: number; 
+  cy?: number; 
+  midAngle?: number; 
+  innerRadius?: number; 
+  outerRadius?: number; 
+  percent?: number;
+  name?: string;
+}) => {
+  if (!percent || percent < 0.05) return null;
+  
+  const RADIAN = Math.PI / 180;
+  const radius = (innerRadius || 0) + ((outerRadius || 0) - (innerRadius || 0)) * 0.5;
+  const x = (cx || 0) + radius * Math.cos(-midAngle! * RADIAN);
+  const y = (cy || 0) + radius * Math.sin(-midAngle! * RADIAN);
+
+  return (
+    <text 
+      x={x} 
+      y={y} 
+      fill="white" 
+      textAnchor={x > (cx || 0) ? 'start' : 'end'} 
+      dominantBaseline="central"
+      className="text-xs font-medium"
+    >
+      {name && name.length > 10 ? `${name.slice(0, 10)}...` : name}
+      {` (${(percent * 100).toFixed(0)}%)`}
+    </text>
+  );
+};
+
 export const Dashboard = () => {
   const { activeUsers, connectionStatus, sendMessage, isConnected } = useWebSocket();
   const [data, setData] = useState<QueryEvent[]>([]);
@@ -129,6 +189,35 @@ export const Dashboard = () => {
       // Keep only the last 100 events to prevent memory issues
       return newEvents.slice(0, 100);
     });
+  }, []);
+
+  // Load recharts dynamically from CDN
+  useEffect(() => {
+    if (!window.Recharts) {
+      const script = document.createElement('script');
+      script.src = 'https://unpkg.com/recharts@2.9.3/umd/Recharts.min.js';
+      script.async = true;
+      script.onload = () => {
+        if (window.Recharts) {
+          ResponsiveContainer = window.Recharts.ResponsiveContainer;
+          PieChart = window.Recharts.PieChart;
+          Pie = window.Recharts.Pie;
+          BarChart = window.Recharts.BarChart;
+          Bar = window.Recharts.Bar;
+          XAxis = window.Recharts.XAxis;
+          YAxis = window.Recharts.YAxis;
+          CartesianGrid = window.Recharts.CartesianGrid;
+          Legend = window.Recharts.Legend;
+          LineChart = window.Recharts.LineChart;
+          Line = window.Recharts.Line;
+          Cell = window.Recharts.Cell;
+          Tooltip = window.Recharts.Tooltip;
+          // Force a re-render
+          setData((prevData: QueryEvent[]) => [...prevData]);
+        }
+      };
+      document.body.appendChild(script);
+    }
   }, []);
 
   // Handle WebSocket messages
@@ -507,9 +596,7 @@ export const Dashboard = () => {
                         cy="50%"
                         outerRadius="90%"
                         innerRadius="40%"
-                        label={({ name, percent }) => 
-                          `${name} (${(percent * 100).toFixed(0)}%)`
-                        }
+                        label={renderCustomizedLabel}
                         labelLine={false}
                         animationBegin={0}
                         animationDuration={750}
@@ -523,7 +610,7 @@ export const Dashboard = () => {
                         ))}
                       </Pie>
                       <Tooltip 
-                        content={({ active, payload }) => {
+                        content={({ active, payload }: { active?: boolean, payload?: Array<any> }) => {
                           if (active && payload && payload.length && payload[0] && payload[0].payload) {
                             return (
                               <div className="rounded-lg border bg-background/95 p-2 shadow-sm backdrop-blur-sm">
@@ -550,7 +637,7 @@ export const Dashboard = () => {
                       <Legend 
                         verticalAlign="bottom" 
                         height={36}
-                        content={({ payload }) => (
+                        content={({ payload }: { payload?: Array<any> }) => (
                           <div className="flex flex-wrap justify-center gap-4 pt-4">
                             {payload?.map((entry, index) => (
                               <div key={`legend-${index}`} className="flex items-center gap-2">
@@ -610,7 +697,7 @@ export const Dashboard = () => {
                       />
                       <Tooltip 
                         cursor={{ fill: 'hsl(var(--muted)/0.1)' }}
-                        content={({ active, payload }) => {
+                        content={({ active, payload }: { active?: boolean, payload?: Array<any> }) => {
                           if (active && payload && payload.length && payload[0] && payload[0].payload) {
                             return (
                               <div className="rounded-lg border bg-background/95 p-2 shadow-sm backdrop-blur-sm">
@@ -684,9 +771,7 @@ export const Dashboard = () => {
                       cy="50%"
                       outerRadius="90%"
                       innerRadius="40%"
-                      label={({ name, percent }) => 
-                        `${name} (${(percent * 100).toFixed(0)}%)`
-                      }
+                      label={renderCustomizedLabel}
                       labelLine={false}
                       animationBegin={0}
                       animationDuration={750}
@@ -700,7 +785,7 @@ export const Dashboard = () => {
                       ))}
                     </Pie>
                     <Tooltip 
-                      content={({ active, payload }) => {
+                      content={({ active, payload }: { active?: boolean, payload?: Array<any> }) => {
                         if (active && payload && payload.length && payload[0] && payload[0].payload) {
                           return (
                             <div className="rounded-lg border bg-background/95 p-2 shadow-sm backdrop-blur-sm">
@@ -727,7 +812,7 @@ export const Dashboard = () => {
                     <Legend 
                       verticalAlign="bottom" 
                       height={36}
-                      content={({ payload }) => (
+                      content={({ payload }: { payload?: Array<any> }) => (
                         <div className="flex flex-wrap justify-center gap-4 pt-4">
                           {payload?.map((entry, index) => (
                             <div key={`legend-${index}`} className="flex items-center gap-2">
