@@ -88,18 +88,6 @@ export function ChemistryCalculators() {
   };
 
   const handleCalculatorClick = (id: string) => {
-    if (!isAuthenticated) {
-      toast.error("Please log in to use this feature", {
-        description: "Create an account to unlock all premium features.",
-        action: {
-          label: "Log in",
-          onClick: () => {
-            toast.info("Click the Login button in the header to get started");
-          },
-        },
-      });
-      return;
-    }
     setActiveCalculator(activeCalculator === id ? null : id);
   };
 
@@ -191,7 +179,7 @@ export function ChemistryCalculators() {
                     <CardDescription>{calc.description}</CardDescription>
                   </CardHeader>
                   {activeCalculator === calc.id && (
-                    <CardContent className="pt-4 border-t">
+                    <CardContent className="pt-4 border-t" onClick={(e) => e.stopPropagation()}>
                       {calc.component}
                     </CardContent>
                   )}

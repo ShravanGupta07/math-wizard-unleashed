@@ -82,31 +82,31 @@ export function PhysicsCalculators() {
       id: 'kinetic-energy',
       title: 'Kinetic Energy Calculator',
       description: 'Calculate kinetic energy from mass and velocity',
-      component: <KineticEnergyCalculator />
+      component: () => <KineticEnergyCalculator />
     },
     {
       id: 'newtons-law',
       title: 'Newton\'s Second Law',
       description: 'Calculate force using mass and acceleration',
-      component: <NewtonsSecondLawCalculator />
+      component: () => <NewtonsSecondLawCalculator />
     },
     {
       id: 'free-fall',
       title: 'Free Fall Calculator',
       description: 'Calculate distance in free fall motion',
-      component: <FreeFallCalculator />
+      component: () => <FreeFallCalculator />
     },
     {
       id: 'power',
       title: 'Power Calculator',
       description: 'Calculate electrical power from voltage and current',
-      component: <PowerCalculator />
+      component: () => <PowerCalculator />
     },
     {
       id: 'ohms-law',
       title: 'Ohm\'s Law Calculator',
       description: 'Calculate voltage using current and resistance',
-      component: <OhmsLawCalculator />
+      component: () => <OhmsLawCalculator />
     }
   ];
 
@@ -183,8 +183,8 @@ export function PhysicsCalculators() {
                     <CardDescription>{calc.description}</CardDescription>
                   </CardHeader>
                   {activeCalculator === calc.id && (
-                    <CardContent className="pt-4 border-t">
-                      {calc.component}
+                    <CardContent className="pt-4 border-t" onClick={(e) => e.stopPropagation()}>
+                      {calc.component()}
                     </CardContent>
                   )}
                 </Card>

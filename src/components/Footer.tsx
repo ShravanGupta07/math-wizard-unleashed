@@ -33,11 +33,16 @@ const Footer = () => {
                 AI-powered math solver for all your mathematical needs.
               </span>
               <div className="mt-2 flex space-x-4">
-                <a href="#" className="text-muted-foreground hover:text-primary transition-colors">
-                  <Twitter className="h-6 w-6" />
-                  <span className="sr-only">Twitter</span>
+                
+                <a href="https://github.com/Bhavnakumari-solanki-15" className="text-muted-foreground hover:text-primary transition-colors">
+                  <Github className="h-6 w-6" />
+                  <span className="sr-only">GitHub</span>
                 </a>
-                <a href="#" className="text-muted-foreground hover:text-primary transition-colors">
+                <a href="https://github.com/ShravanGupta07" className="text-muted-foreground hover:text-primary transition-colors">
+                  <Github className="h-6 w-6" />
+                  <span className="sr-only">GitHub</span>
+                </a>
+                <a href="https://github.com/rustyy1" className="text-muted-foreground hover:text-primary transition-colors">
                   <Github className="h-6 w-6" />
                   <span className="sr-only">GitHub</span>
                 </a>
@@ -48,7 +53,7 @@ const Footer = () => {
               {/* Product */}
               <div className="rounded-xl bg-background/50 dark:bg-background/40 backdrop-blur-sm shadow-sm p-6 flex flex-col items-start group transition-all hover:bg-background/70 dark:hover:bg-background/60">
                 <h3 className="text-base font-bold mb-4 text-foreground group-hover:text-primary transition-colors">
-                  Product
+                  Products
                 </h3>
                 <ul className="space-y-2 w-full">
                   <li>
@@ -57,13 +62,32 @@ const Footer = () => {
                     </Link>
                   </li>
                   <li>
-                    <Link to="/examples" className="block text-muted-foreground hover:text-foreground transition-colors">
-                      Examples
+                    <Link to="/practice" className="block text-muted-foreground hover:text-foreground transition-colors">
+                      Practice
                     </Link>
                   </li>
                 </ul>
               </div>
-              {/* Resources */}
+              
+              <div className="rounded-xl bg-background/50 dark:bg-background/40 backdrop-blur-sm shadow-sm p-6 flex flex-col items-start group transition-all hover:bg-background/70 dark:hover:bg-background/60">
+                <h3 className="text-base font-bold mb-4 text-foreground group-hover:text-primary transition-colors">
+                  Services
+                </h3>
+                <ul className="space-y-2 w-full">
+                  <li>
+                    <Link to="/math-mentor" className="block text-muted-foreground hover:text-foreground transition-colors">
+                      Mentor
+                    </Link>
+                  </li>
+                  <li>
+                    <Link to="/science-calculators" className="block text-muted-foreground hover:text-foreground transition-colors">
+                      Science
+                    </Link>
+                  </li>
+                </ul>
+              </div>
+              
+              {/* Resources - moved to last position */}
               <div className="rounded-xl bg-background/50 dark:bg-background/40 backdrop-blur-sm shadow-sm p-6 flex flex-col items-start group transition-all hover:bg-background/70 dark:hover:bg-background/60">
                 <h3 className="text-base font-bold mb-4 text-foreground group-hover:text-primary transition-colors">
                   Resources
@@ -83,11 +107,6 @@ const Footer = () => {
                   </li>
                 </ul>
               </div>
-              
-              <div className="rounded-xl bg-background/50 dark:bg-background/40 backdrop-blur-sm shadow-sm p-6 flex flex-col items-start group transition-all hover:bg-background/70 dark:hover:bg-background/60">
-                <ul className="space-y-2 w-full">
-                </ul>
-              </div>
             </div>
           </div>
           {/* Bottom Bar */}
@@ -98,7 +117,6 @@ const Footer = () => {
             </p>
             <div className="flex items-center gap-2 mt-2 md:mt-0">
               <span className="text-xs text-muted-foreground">{time.toLocaleTimeString()}</span>
-              <span className="text-xs text-muted-foreground ml-2">Powered by GROQ AI</span>
             </div>
           </div>
         </div>

@@ -122,6 +122,41 @@ Our smart calculator doesn't just solve problems - it teaches you how to solve t
 • Practice suggestions
 • Common mistake warnings
 
+### Math Mentor
+Get personalized guidance from our AI-powered mentor:
+• One-on-one tutoring experience
+• Customized learning paths
+• Adaptive difficulty levels
+• Real-time feedback
+
+### Practice
+Strengthen your skills with targeted practice sessions:
+• Varied difficulty levels
+• Topic-specific exercises
+• Custom problem sets
+• Instant feedback
+
+### Math Oracle
+Explore advanced problem-solving techniques:
+• Predictive analysis
+• Pattern recognition
+• Alternative solution methods
+• Complex problem breakdowns
+
+### Math Chaos
+Challenge yourself with our advanced problem generator:
+• Randomized challenges
+• Competitive leaderboards
+• Time-based exercises
+• Advanced concepts
+
+### Science Calculators
+Specialized tools for physics and chemistry calculations:
+• Unit conversions
+• Formula application
+• Visual representations
+• Conceptual explanations
+
 ### Study Guides
 Comprehensive guides for every topic:
 • Concept explanations
@@ -134,30 +169,7 @@ Monitor your learning journey:
 • Topic mastery levels
 • Practice history
 • Weak areas identification
-• Improvement suggestions
-
-## Premium Features
-
-### Personalized Learning
-Get a customized learning experience:
-• Adaptive problem selection
-• Personalized study plans
-• Progress reports
-• Performance analytics
-
-### Teaching Tools
-For educators and tutors:
-• Problem set creation
-• Student progress monitoring
-• Assignment management
-• Performance reports
-
-### Advanced Support
-Get extra help when needed:
-• Priority support
-• One-on-one tutoring
-• Live problem solving
-• Expert guidance`
+• Improvement suggestions`
       }
     ]
   };
@@ -171,7 +183,8 @@ Get extra help when needed:
           <div className="prose prose-gray dark:prose-invert max-w-none">
             {section.content.split('\n').map((line, idx) => {
               if (line.startsWith('##')) {
-                const level = line.match(/^#+/)[0].length;
+                const match = line.match(/^#+/);
+                const level = match ? match[0].length : 2; // Default to h2 if match fails
                 const title = line.slice(level + 1);
                 const Tag = level === 2 ? 'h2' : 'h3';
                 return (

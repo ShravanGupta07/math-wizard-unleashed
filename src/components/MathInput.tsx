@@ -6,7 +6,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { toast } from "./ui/sonner";
 import { useAuth } from "../contexts/AuthContext";
 import { Camera, FileText, Mic, PenTool, Upload, Calculator, X } from "lucide-react";
-import { MathProblem } from "../lib/groq-api";
 import VoiceRecorder from "./VoiceRecorder";
 import DrawingCanvas from "./DrawingCanvas";
 import 'katex/dist/katex.min.css';
@@ -19,8 +18,15 @@ import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "./ui/dialog";
 
+interface MathProblem {
+  problem: string;
+  type: "text" | "image" | "voice" | "latex" | "file";
+  content?: string;
+  latex?: string;  // Add latex field to MathProblem interface
+}
+
 interface MathInputProps {
-  onSubmit: (problem: MathProblem | string) => void;
+  onSubmit: (problem: MathProblem) => void;
   isLoading?: boolean;
   onClear: () => void;
 }
@@ -47,6 +53,34 @@ const MathInput: React.FC<MathInputProps> = ({ onSubmit, isLoading, onClear }) =
   const navigate = useNavigate();
   const [showLoginPrompt, setShowLoginPrompt] = useState(false);
   const [textSolveCount, setTextSolveCount] = useState(0);
+
+  // Function to send event to WebSocket server
+  const sendEventToServer = async (query: {
+    topic: string;
+    latex: string;
+    formulaType: string;
+  }) => {
+    try {
+      const event = {
+        userId: user?.id || 'anonymous',
+        ...query,
+      };
+
+      const response = await fetch('http://localhost:4000/event', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(event),
+      });
+
+      if (!response.ok) {
+        console.error('Failed to send event to server');
+      }
+    } catch (error) {
+      console.error('Error sending event to server:', error);
+    }
+  };
 
   const tabMeta = [
     { value: 'text', label: 'Text', icon: FileText },
@@ -515,13 +549,24 @@ const MathInput: React.FC<MathInputProps> = ({ onSubmit, isLoading, onClear }) =
     }
 
     if (!validateMathExpression(textInput)) {
-      toast.error("Please check your mathematical expression for errors");
+      toast.error("Invalid math expression. Please check your input.");
       return;
     }
+
+    const latex = convertToLatex(textInput);
+    setLatexPreview(latex);
+
+    // Send event to server
+    sendEventToServer({
+      topic: 'algebra', // You might want to detect this based on the input
+      latex: latex,
+      formulaType: 'text',
+    });
 
     onSubmit({
       problem: textInput,
       type: "text",
+      latex: latex,
     });
 
     // Only for non-logged-in users, increment solve count and show modal if needed
@@ -535,15 +580,23 @@ const MathInput: React.FC<MathInputProps> = ({ onSubmit, isLoading, onClear }) =
   };
 
   const handleLatexSubmit = (latex: string) => {
-    try {
-      onSubmit({
-        problem: latex,
-        type: "latex",
-      });
-    } catch (error) {
-      console.error("Error processing LaTeX:", error);
-      toast.error("Failed to process LaTeX. Please try again.");
+    if (!latex.trim()) {
+      toast.error("Please enter a LaTeX expression");
+      return;
     }
+
+    // Send event to server
+    sendEventToServer({
+      topic: 'algebra', // You might want to detect this based on the input
+      latex: latex,
+      formulaType: 'latex',
+    });
+
+    onSubmit({
+      problem: latex,
+      type: "latex",
+      latex: latex,
+    });
   };
 
   const handlePremiumFeatureClick = () => {

@@ -13,35 +13,46 @@ const Signup = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmitting) return; // Prevent multiple submissions
+    
     try {
+      setIsSubmitting(true);
       await signUp(email, password, name);
       navigate("/login");
     } catch (error) {
       // Error is handled by the auth context
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   const handleGoogleSignUp = async () => {
+    if (isSubmitting) return;
+    
     try {
+      setIsSubmitting(true);
       await signInWithGoogle();
     } catch (error) {
       // Error is handled by the auth context
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-primary/5 to-background">
-      <Card className="w-full max-w-md mx-4">
+    <div className="container flex h-screen w-screen flex-col items-center justify-center">
+      <Card className="w-full max-w-md">
         <CardHeader className="space-y-1">
-          <CardTitle className="text-2xl font-bold text-center">Create your account</CardTitle>
-          <CardDescription className="text-center">
+          <CardTitle className="text-2xl font-bold">Create your account</CardTitle>
+          <CardDescription>
             Sign up to get started with MathWizard
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="name">Name</Label>
@@ -53,8 +64,9 @@ const Signup = () => {
                   placeholder="Enter your name"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  className="pl-9"
+                  className="pl-10"
                   required
+                  disabled={isSubmitting}
                 />
               </div>
             </div>
@@ -68,8 +80,9 @@ const Signup = () => {
                   placeholder="Enter your email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="pl-9"
+                  className="pl-10"
                   required
+                  disabled={isSubmitting}
                 />
               </div>
             </div>
@@ -83,13 +96,19 @@ const Signup = () => {
                   placeholder="Enter your password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="pl-9"
+                  className="pl-10"
                   required
+                  disabled={isSubmitting}
+                  minLength={6}
                 />
               </div>
             </div>
-            <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? (
+            <Button 
+              type="submit" 
+              className="w-full" 
+              disabled={isSubmitting || !email || !password || !name}
+            >
+              {isSubmitting ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   Creating account...
@@ -99,9 +118,10 @@ const Signup = () => {
               )}
             </Button>
           </form>
-          <div className="relative">
+
+          <div className="relative my-4">
             <div className="absolute inset-0 flex items-center">
-              <span className="w-full border-t" />
+              <div className="w-full border-t"></div>
             </div>
             <div className="relative flex justify-center text-xs uppercase">
               <span className="bg-background px-2 text-muted-foreground">
@@ -109,11 +129,13 @@ const Signup = () => {
               </span>
             </div>
           </div>
+
           <Button
             variant="outline"
+            type="button"
+            disabled={isSubmitting}
             className="w-full"
             onClick={handleGoogleSignUp}
-            disabled={loading}
           >
             <svg className="mr-2 h-4 w-4" viewBox="0 0 24 24">
               <path
@@ -135,12 +157,16 @@ const Signup = () => {
             </svg>
             Google
           </Button>
-          <p className="text-center text-sm text-muted-foreground">
+
+          <div className="mt-4 text-center text-sm">
             Already have an account?{" "}
-            <Link to="/login" className="text-primary hover:underline">
+            <Link
+              to="/login"
+              className="underline underline-offset-4 hover:text-primary"
+            >
               Sign in
             </Link>
-          </p>
+          </div>
         </CardContent>
       </Card>
     </div>

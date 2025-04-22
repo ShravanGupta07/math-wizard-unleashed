@@ -1,3 +1,4 @@
+import './polyfills';
 import React from 'react'
 import { createRoot } from 'react-dom/client'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
@@ -11,7 +12,7 @@ const queryClient = new QueryClient({
       staleTime: 1000 * 60 * 5, // 5 minutes
       gcTime: 1000 * 60 * 30, // 30 minutes
       retry: 1,
-      refetchOnWindowFocus: false
+      refetchOnWindowFocus: false,
     },
   },
 })
@@ -21,10 +22,14 @@ if (!rootElement) throw new Error('Failed to find the root element')
 
 const root = createRoot(rootElement)
 
-root.render(
-  <React.StrictMode>
-    <QueryClientProvider client={queryClient}>
-      <App />
-    </QueryClientProvider>
-  </React.StrictMode>
-)
+function Root() {
+  return (
+    <React.StrictMode>
+      <QueryClientProvider client={queryClient}>
+        <App />
+      </QueryClientProvider>
+    </React.StrictMode>
+  )
+}
+
+root.render(<Root />)

@@ -1,3 +1,4 @@
+import React from 'react';
 import {
   Dialog,
   DialogContent,
@@ -8,13 +9,15 @@ import { UnitConverter } from "./UnitConverter";
 import { GraphingTool } from "./GraphingTool";
 import { FormulaSheet } from "./FormulaSheet";
 import { TopicExplorer } from "./TopicExplorer";
-import { QuickTools } from "./QuickTools";
+import { StoryProblemGenerator } from "./StoryProblemGenerator";
 import { BrainBooster } from "./BrainBooster";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
+import { Calculator, BookText, Brain } from "lucide-react";
 
 interface MathToolsDialogProps {
   isOpen: boolean;
   onClose: () => void;
-  tool: "unit-converter" | "graphing-tool" | "formula-sheet" | "topic-explorer" | "quick-tools" | "brain-booster";
+  tool: "unit-converter" | "graphing-tool" | "formula-sheet" | "topic-explorer" | "story-problem-generator" | "brain-booster";
 }
 
 const toolTitles = {
@@ -22,12 +25,31 @@ const toolTitles = {
   "graphing-tool": "Graphing Tool",
   "formula-sheet": "Formula Sheet",
   "topic-explorer": "Topic Explorer",
-  "quick-tools": "Quick Tools & Brain Boosters",
+  "story-problem-generator": "Story Problem Generator",
   "brain-booster": "Brain Booster",
 };
 
 export function MathToolsDialog({ isOpen, onClose, tool }: MathToolsDialogProps) {
-  const renderTool = () => {
+  const getTitle = () => {
+    switch (tool) {
+      case "unit-converter":
+        return "Unit Converter";
+      case "graphing-tool":
+        return "Graphing Tool";
+      case "formula-sheet":
+        return "Formula Sheet";
+      case "topic-explorer":
+        return "Topic Explorer";
+      case "story-problem-generator":
+        return "Story Problem Generator";
+      case "brain-booster":
+        return "Brain Booster";
+      default:
+        return "Math Tools";
+    }
+  };
+
+  const renderContent = () => {
     switch (tool) {
       case "unit-converter":
         return <UnitConverter />;
@@ -37,24 +59,30 @@ export function MathToolsDialog({ isOpen, onClose, tool }: MathToolsDialogProps)
         return <FormulaSheet />;
       case "topic-explorer":
         return <TopicExplorer />;
-      case "quick-tools":
-        return <QuickTools />;
+      case "story-problem-generator":
+        return (
+          <div className="p-4">
+            <StoryProblemGenerator />
+          </div>
+        );
       case "brain-booster":
-        return <BrainBooster />;
+        return (
+          <div className="p-4">
+            <BrainBooster />
+          </div>
+        );
       default:
         return null;
     }
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-4xl h-[80vh] flex flex-col">
+    <Dialog open={isOpen} onOpenChange={() => onClose()}>
+      <DialogContent className="max-w-4xl h-[80vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{toolTitles[tool]}</DialogTitle>
+          <DialogTitle>{getTitle()}</DialogTitle>
         </DialogHeader>
-        <div className="flex-1 overflow-y-auto">
-          {renderTool()}
-        </div>
+        {renderContent()}
       </DialogContent>
     </Dialog>
   );

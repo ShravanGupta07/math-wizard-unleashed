@@ -9,32 +9,67 @@ declare global {
 import { toast } from "../components/ui/sonner";
 import { Groq } from 'groq-sdk';
 
-// The API Key, ideally this would be stored in a more secure way like environment variables or server-side
-const GROQ_API_KEY = "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";
+// Define environment variable type
+declare global {
+  interface ImportMetaEnv {
+    VITE_GROQ_API_KEY: string;
+  }
+}
 
-const groqClient = new Groq({
-  apiKey: GROQ_API_KEY,
-  dangerouslyAllowBrowser: true // Allow browser usage with proper security measures
-});
+// Initialize Groq client with environment variable and error handling
+let groqClient: Groq;
+
+try {
+  if (!import.meta.env.VITE_GROQ_API_KEY) {
+    throw new Error('GROQ API key is not defined in environment variables');
+  }
+  
+  groqClient = new Groq({
+    apiKey: import.meta.env.VITE_GROQ_API_KEY,
+    dangerouslyAllowBrowser: true // Allow browser usage with proper security measures
+  });
+} catch (error) {
+  console.error('Failed to initialize Groq client:', error);
+  toast.error('Failed to initialize AI services. Please check your configuration.');
+  
+  // Provide a dummy client that throws errors for all operations
+  groqClient = new Proxy({} as Groq, {
+    get: () => () => {
+      throw new Error('Groq client is not properly initialized');
+    }
+  });
+}
 
 export interface MathProblem {
   problem: string;
-  type: "text" | "image" | "voice" | "latex" | "drawing" | "file";
-  fileType?: "pdf" | "docx" | "csv";
-  content?: string | ArrayBuffer | null;
-  requestVisualization?: boolean;
-  requestHints?: boolean;
+  type?: 'text' | 'image' | 'voice' | 'file' | 'latex';
 }
 
 export interface MathSolution {
   solution: string;
   explanation: string;
+  steps?: string[];
   latex?: string;
   visualization?: any;
-  steps?: string[];
   topic?: string;
   hints?: string[];
+  keyPoints?: string[];
+  verification?: string;
+  relatedConcepts?: string[];
   plotData?: any;
+  fileAnalysis?: {
+    fileType: 'pdf' | 'csv' | 'docx';
+    problemCount: number;
+    topics: string[];
+    problems: Array<{
+      question: string;
+      topic: string;
+      solution: string;
+      answer: string;
+      keyPoints?: string[];
+      formulas?: string[];
+    }>;
+  };
 }
 
 // Topic detection using keywords and patterns
@@ -90,92 +125,30 @@ const detectMathTopic = (problem: string): string => {
 
 export const solveMathProblem = async (problem: MathProblem): Promise<MathSolution> => {
   try {
-    let content = problem.content;
+    const prompt = `Solve this mathematical problem:
+    ${problem.problem}
     
-    // Handle file content if it exists
-    if ((problem.type === "file" || problem.type === "image" || problem.type === "voice" || problem.type === "drawing") && content) {
-      if (typeof content !== "string") {
-        // Convert ArrayBuffer to base64 for sending
-        const buffer = new Uint8Array(content as ArrayBuffer);
-        content = btoa(String.fromCharCode.apply(null, Array.from(buffer)));
-      }
-      
-      // Truncate content if too large
-      const maxContentLength = 3000; // Conservative limit
-      if (content.length > maxContentLength) {
-        content = content.slice(0, maxContentLength) + "...";
-      }
-    }
-    
-    // Detect the mathematical topic for more accurate solutions
-    const detectedTopic = problem.type === "text" ? detectMathTopic(problem.problem) : "general";
-    
-    // Construct a more concise system prompt
-    const systemPrompt = `You are MathWizard, specialized in ${detectMathTopic(problem.problem)}. 
-      Provide clear solutions with LaTeX notation. Format final answer as '【answer】'.`;
-    
-    // Construct the user prompt
-    let userPrompt = "Solve this math problem: " + problem.problem;
-    
-    if (problem.type === "image") {
-      userPrompt = "Analyze and solve the math problem in this image: " + problem.problem + " Ensure you identify all symbols and numbers correctly.";
-    } else if (problem.type === "voice") {
-      userPrompt = "Carefully analyze this spoken math problem and solve it step by step: " + problem.problem;
-      userPrompt += " Remember to focus on mathematical terms and properly interpret them.";
-    } else if (problem.type === "drawing") {
-      userPrompt = "Analyze this hand-drawn math problem and solve it step by step: " + problem.problem;
-      userPrompt += " Pay special attention to correctly identifying all mathematical symbols, numbers, and operations.";
-    } else if (problem.type === "file") {
-      userPrompt = `Extract and solve the math problems from this ${problem.fileType} file. `;
-      if (problem.fileType === "csv") {
-        userPrompt += "Perform appropriate statistical analysis if needed.";
-      }
-    }
-    
-    // Request visualization if needed
-    if (problem.requestVisualization) {
-      userPrompt += " Please include visualization data for graphing or geometric interpretation.";
-    }
-    
-    // Request hints if needed
-    if (problem.requestHints) {
-      userPrompt += " Please provide progressive hints that would help someone solve this on their own.";
-    }
-    
-    // Make request to GROQ API with optimized parameters
-    const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${GROQ_API_KEY}`,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        model: "llama-3.3-70b-versatile",
-        messages: [
-          {
-            role: "system",
-            content: systemPrompt
-          },
-          {
-            role: "user",
-            content: problem.problem.slice(0, 2000) // Limit problem length
-          }
-        ],
-        temperature: 0.1,
-        max_tokens: 1000, // Reduced token limit
-        top_p: 0.99,
-        frequency_penalty: 0.1,
-        presence_penalty: 0.1
-      })
+    Provide a detailed solution with steps, explanations, and LaTeX notation if applicable.`;
+
+    const response = await groqClient.chat.completions.create({
+      messages: [
+        {
+          role: 'system',
+          content: 'You are a mathematical expert and teacher, skilled in explaining complex concepts in simple terms.',
+        },
+        {
+          role: 'user',
+          content: prompt,
+        },
+      ],
+      model: 'llama-3.3-70b-versatile',
+      temperature: 0.5,
+      max_tokens: 2048,
+      top_p: 1,
+      stream: false,
     });
-    
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.error?.message || "Failed to solve the math problem");
-    }
-    
-    const data = await response.json();
-    const aiResponse = data.choices[0].message.content;
+
+    const aiResponse = response.choices[0]?.message?.content || '';
     
     // Extract different components from the response
     const topic = extractTopic(aiResponse);
@@ -470,11 +443,11 @@ export const groq = {
       const response = await fetch('https://api.groq.com/v1/vision/analyze', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${process.env.NEXT_PUBLIC_GROQ_API_KEY}`,
+          'Authorization': `Bearer ${import.meta.env.VITE_GROQ_API_KEY}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          model: 'mixtral-8x7b-32768',
+          model: 'llama-3.3-70b-versatile',
           messages: [
             {
               role: 'system',

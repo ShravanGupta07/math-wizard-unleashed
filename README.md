@@ -71,3 +71,69 @@ Yes, you can!
 To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
 
 Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-tricks/custom-domain#step-by-step-guide)
+
+# Fluvio Collaborative Features Setup
+
+To set up and use the collaborative features with Fluvio in WSL Ubuntu:
+
+## Prerequisites
+
+1. Windows Subsystem for Linux (WSL) with Ubuntu installed
+2. Fluvio installed in your WSL Ubuntu environment
+
+## Installation Steps for Fluvio in WSL
+
+1. Open a WSL terminal (Ubuntu)
+2. Install Fluvio CLI:
+   ```bash
+   curl -fsS https://packages.fluvio.io/v1/install.sh | bash
+   ```
+3. Add Fluvio to your PATH:
+   ```bash
+   export PATH="$HOME/.fluvio/bin:$PATH"
+   ```
+   Add this line to your `.bashrc` or `.zshrc` for permanent setup.
+4. Start a local Fluvio cluster:
+   ```bash
+   fluvio cluster start
+   ```
+
+## Running the Collaborative Server
+
+From your Windows environment, run:
+
+```bash
+npm run server:collab
+```
+
+This script will:
+1. Detect your WSL environment
+2. Find the WSL IP address
+3. Update the `.env` file with the correct WSL IP
+4. Start Fluvio if it's not already running
+5. Start the collaborative server with Fluvio integration
+
+## Troubleshooting
+
+If you encounter issues:
+
+1. Make sure Fluvio is installed in WSL:
+   ```bash
+   wsl which fluvio
+   ```
+
+2. Check if Fluvio cluster is running:
+   ```bash
+   wsl fluvio cluster status
+   ```
+
+3. Manually start Fluvio if needed:
+   ```bash
+   wsl fluvio cluster start
+   ```
+
+4. Get your WSL IP address:
+   ```bash
+   wsl hostname -I
+   ```
+   The first IP address should be used for `VITE_FLUVIO_WSL_IP` in your `.env` file.

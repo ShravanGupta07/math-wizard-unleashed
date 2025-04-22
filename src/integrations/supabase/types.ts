@@ -9,6 +9,42 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      math_scrolls: {
+        Row: {
+          id: string
+          created_at: string
+          wallet_address: string
+          problem: string
+          solution: string
+          token_id: string | null
+          status: 'pending' | 'minted' | 'failed'
+          transaction_hash: string | null
+          metadata_uri: string | null
+        }
+        Insert: {
+          id?: string
+          created_at?: string
+          wallet_address: string
+          problem: string
+          solution: string
+          token_id?: string | null
+          status?: 'pending' | 'minted' | 'failed'
+          transaction_hash?: string | null
+          metadata_uri?: string | null
+        }
+        Update: {
+          id?: string
+          created_at?: string
+          wallet_address?: string
+          problem?: string
+          solution?: string
+          token_id?: string | null
+          status?: 'pending' | 'minted' | 'failed'
+          transaction_hash?: string | null
+          metadata_uri?: string | null
+        }
+        Relationships: []
+      }
       math_history: {
         Row: {
           created_at: string
@@ -48,6 +84,75 @@ export type Database = {
         }
         Relationships: []
       }
+      practice_sessions: {
+        Row: {
+          id: string
+          user_id: string
+          topic: string
+          score: number
+          questions_count: number
+          correct_answers: number
+          time_spent: number
+          difficulty: string
+          completed_at: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          topic: string
+          score: number
+          questions_count: number
+          correct_answers: number
+          time_spent: number
+          difficulty: string
+          completed_at?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          topic?: string
+          score?: number
+          questions_count?: number
+          correct_answers?: number
+          time_spent?: number
+          difficulty?: string
+          completed_at?: string | null
+          created_at?: string
+        }
+        Relationships: []
+      }
+      practice_answers: {
+        Row: {
+          id: string
+          practice_session_id: string
+          question_text: string
+          selected_option: string | null
+          correct_option: string
+          is_correct: boolean
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          practice_session_id: string
+          question_text: string
+          selected_option?: string | null
+          correct_option: string
+          is_correct: boolean
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          practice_session_id?: string
+          question_text?: string
+          selected_option?: string | null
+          correct_option?: string
+          is_correct?: boolean
+          created_at?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -56,6 +161,7 @@ export type Database = {
           id: string
           name: string | null
           updated_at: string
+          role: 'admin' | 'developer' | 'user'
         }
         Insert: {
           avatar_url?: string | null
@@ -64,6 +170,7 @@ export type Database = {
           id: string
           name?: string | null
           updated_at?: string
+          role?: 'admin' | 'developer' | 'user'
         }
         Update: {
           avatar_url?: string | null
@@ -72,6 +179,7 @@ export type Database = {
           id?: string
           name?: string | null
           updated_at?: string
+          role?: 'admin' | 'developer' | 'user'
         }
         Relationships: []
       }

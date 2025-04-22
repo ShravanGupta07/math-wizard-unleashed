@@ -51,7 +51,7 @@ export function KineticEnergyCalculator() {
   return (
     <div className="space-y-4">
       <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4" onClick={(e) => e.stopPropagation()}>
           <FormField
             control={form.control}
             name="mass"
@@ -64,6 +64,7 @@ export function KineticEnergyCalculator() {
                     step="0.01"
                     {...field}
                     onChange={(e) => field.onChange(parseFloat(e.target.value))}
+                    onClick={(e) => e.stopPropagation()}
                   />
                 </FormControl>
                 <FormMessage />
@@ -83,6 +84,7 @@ export function KineticEnergyCalculator() {
                     step="0.01"
                     {...field}
                     onChange={(e) => field.onChange(parseFloat(e.target.value))}
+                    onClick={(e) => e.stopPropagation()}
                   />
                 </FormControl>
                 <FormMessage />

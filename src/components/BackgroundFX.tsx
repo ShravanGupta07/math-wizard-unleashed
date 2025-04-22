@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { useTheme } from 'next-themes';
+import { useTheme } from './theme-provider';
 
 export default function BackgroundFX() {
   const [vantaEffect, setVantaEffect] = useState<any>(null);

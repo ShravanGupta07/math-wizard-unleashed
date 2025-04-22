@@ -21,6 +21,16 @@ export interface MathHistory {
   timestamp: string;
 }
 
+export interface MathScrollRow {
+  id: string;
+  problem: string;
+  solution: string;
+  image_url: string;
+  wallet_address: string;
+  timestamp: string;
+  tx_hash: string;
+}
+
 export type Database = {
   public: {
     Tables: {
@@ -29,7 +39,11 @@ export type Database = {
         Insert: Omit<MathHistory, 'id' | 'timestamp'>;
         Update: Partial<Omit<MathHistory, 'id' | 'timestamp'>>;
       };
-      // ... other tables
+      math_scrolls: {
+        Row: MathScrollRow;
+        Insert: Omit<MathScrollRow, 'id'>;
+        Update: Partial<Omit<MathScrollRow, 'id'>>;
+      };
     };
   };
 }; 

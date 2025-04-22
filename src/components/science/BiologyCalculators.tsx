@@ -76,6 +76,7 @@ export function BiologyCalculators() {
                 value={initialPopulation}
                 onChange={(e) => setInitialPopulation(Number(e.target.value))}
                 placeholder="Enter initial population"
+                onClick={(e) => e.stopPropagation()}
               />
             </div>
             <div>
@@ -86,6 +87,7 @@ export function BiologyCalculators() {
                 onChange={(e) => setGrowthRate(Number(e.target.value))}
                 placeholder="Enter growth rate"
                 step="0.01"
+                onClick={(e) => e.stopPropagation()}
               />
             </div>
             <div>
@@ -95,6 +97,7 @@ export function BiologyCalculators() {
                 value={time}
                 onChange={(e) => setTime(Number(e.target.value))}
                 placeholder="Enter time"
+                onClick={(e) => e.stopPropagation()}
               />
             </div>
           </div>
@@ -129,6 +132,7 @@ export function BiologyCalculators() {
                 step="0.01"
                 min="0"
                 max="1"
+                onClick={(e) => e.stopPropagation()}
               />
             </div>
             <div>
@@ -141,6 +145,7 @@ export function BiologyCalculators() {
                 step="0.01"
                 min="0"
                 max="1"
+                onClick={(e) => e.stopPropagation()}
               />
             </div>
           </div>
@@ -183,6 +188,7 @@ export function BiologyCalculators() {
                 value={initialCells}
                 onChange={(e) => setInitialCells(Number(e.target.value))}
                 placeholder="Enter initial cells"
+                onClick={(e) => e.stopPropagation()}
               />
             </div>
             <div>
@@ -192,6 +198,7 @@ export function BiologyCalculators() {
                 value={divisions}
                 onChange={(e) => setDivisions(Number(e.target.value))}
                 placeholder="Enter number of divisions"
+                onClick={(e) => e.stopPropagation()}
               />
             </div>
           </div>
@@ -228,6 +235,7 @@ export function BiologyCalculators() {
                       setSpecies(newSpecies);
                     }}
                     placeholder="Enter species name"
+                    onClick={(e) => e.stopPropagation()}
                   />
                 </div>
                 <div>
@@ -241,6 +249,7 @@ export function BiologyCalculators() {
                       setSpecies(newSpecies);
                     }}
                     placeholder="Enter count"
+                    onClick={(e) => e.stopPropagation()}
                   />
                 </div>
               </div>
@@ -299,18 +308,6 @@ export function BiologyCalculators() {
   };
 
   const handleCalculatorClick = (id: string) => {
-    if (!isAuthenticated) {
-      toast.error("Please log in to use this feature", {
-        description: "Create an account to unlock all premium features.",
-        action: {
-          label: "Log in",
-          onClick: () => {
-            toast.info("Click the Login button in the header to get started");
-          },
-        },
-      });
-      return;
-    }
     setActiveCalculator(activeCalculator === id ? null : id);
   };
 
@@ -402,7 +399,7 @@ export function BiologyCalculators() {
                     <CardDescription>{calc.description}</CardDescription>
                   </CardHeader>
                   {activeCalculator === calc.id && (
-                    <CardContent className="pt-4 border-t">
+                    <CardContent className="pt-4 border-t" onClick={(e) => e.stopPropagation()}>
                       {calc.component()}
                     </CardContent>
                   )}

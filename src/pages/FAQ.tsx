@@ -40,10 +40,6 @@ const FAQ = () => {
       answer: "Currently, Math Wizard Unleashed is available as a web application optimized for both desktop and mobile browsers. A dedicated mobile app is in development and will be released soon."
     },
     {
-      question: "How can I get help if I'm stuck?",
-      answer: "We offer multiple support options: 1) Detailed step-by-step explanations for each solution, 2) Interactive hints system, 3) Community forum for discussing problems, and 4) Direct support through our help center."
-    },
-    {
       question: "What makes Math Wizard Unleashed different from other math solvers?",
       answer: "Math Wizard Unleashed combines advanced AI technology with educational best practices. We focus on understanding rather than just answers, providing detailed explanations, multiple solution methods, and interactive learning tools. Our platform also supports multiple input methods and offers specialized calculators for different fields."
     }

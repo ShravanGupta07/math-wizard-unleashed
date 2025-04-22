@@ -13,6 +13,33 @@ interface Solution {
   isRetrying?: boolean;
 }
 
+// Enhanced math notation formatting function
+const formatMathNotation = (text: string): string => {
+  return text
+    // Superscripts (x^2 -> x²)
+    .replace(/\^(\d+)/g, '<sup>$1</sup>')
+    // Fractions (a/b -> properly styled fraction)
+    .replace(/(\d+)\/(\d+)/g, '<span class="inline-block align-middle"><span class="block text-center border-b">$1</span><span class="block text-center">$2</span></span>')
+    // Square roots (sqrt(x) -> √x)
+    .replace(/sqrt\((.*?)\)/g, '√($1)')
+    // Mathematical symbols
+    .replace(/\*/g, '×')
+    .replace(/!=/g, '≠')
+    .replace(/<=/g, '≤')
+    .replace(/>=/g, '≥')
+    .replace(/\+-/g, '±')
+    .replace(/infinity/g, '∞')
+    // Greek letters
+    .replace(/alpha/g, 'α')
+    .replace(/beta/g, 'β')
+    .replace(/gamma/g, 'γ')
+    .replace(/delta/g, 'δ')
+    .replace(/theta/g, 'θ')
+    .replace(/pi/g, 'π')
+    // Subscripts (x_1 -> x₁)
+    .replace(/\_(\d)/g, '<sub>$1</sub>');
+};
+
 const FileSolver = () => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -69,15 +96,37 @@ const FileSolver = () => {
   const readFileContent = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
-      reader.onload = (e) => {
-        if (e.target?.result) {
-          resolve(e.target.result as string);
-        } else {
-          reject(new Error("Failed to read file"));
+      
+      reader.onload = async (e) => {
+        try {
+          if (!e.target?.result) {
+            throw new Error("Failed to read file");
+          }
+
+          if (file.type === 'application/pdf') {
+            // For PDF files, we need to use readAsDataURL
+            const base64Content = e.target.result as string;
+            // Remove the data:application/pdf;base64, prefix
+            const pdfContent = base64Content.split(',')[1];
+            
+            // Now we can send this to our solver
+            resolve(pdfContent);
+          } else {
+            // For other file types, we can use the text content directly
+            resolve(e.target.result as string);
+          }
+        } catch (error) {
+          reject(error);
         }
       };
+      
       reader.onerror = () => reject(reader.error);
-      reader.readAsText(file);
+      
+      if (file.type === 'application/pdf') {
+        reader.readAsDataURL(file);
+      } else {
+        reader.readAsText(file);
+      }
     });
   };
 
@@ -203,10 +252,10 @@ ${sol.explanation}
 -------------------
 `).join('\n');
 
-      // Create blob based on format
       let blob: Blob;
       let filename: string;
 
+      // Initialize blob and filename based on format
       if (format === 'csv') {
         const csvContent = solutions.map(sol => 
           `"${sol.question}","${sol.answer}","${sol.explanation}"`
@@ -225,11 +274,14 @@ ${sol.explanation}
                   body { font-family: Arial, sans-serif; padding: 20px; }
                   .question { margin-top: 20px; font-weight: bold; }
                   .solution { margin-left: 20px; }
+                  .fraction { display: inline-block; text-align: center; vertical-align: middle; }
+                  .fraction > span { display: block; padding: 0.1em; }
+                  .fraction span.bottom { border-top: 1px solid; }
                 </style>
               </head>
               <body>
                 <h1>Math Solutions</h1>
-                ${content.replace(/\n/g, '<br>')}
+                ${content.split('\n').map(line => formatMathNotation(line)).join('<br>')}
               </body>
             </html>
           `);
@@ -237,6 +289,9 @@ ${sol.explanation}
           printWindow.print();
           return;
         }
+        // Fallback if print window fails
+        blob = new Blob([content], { type: 'text/plain' });
+        filename = 'math_solutions.txt';
       } else {
         // For DOCX, create a simple text file
         blob = new Blob([content], { type: 'text/plain' });
@@ -399,27 +454,31 @@ ${sol.explanation}
                       </Button>
                     </div>
                   </div>
-                  <p className="text-red-500">{solution.question}</p>
+                  <p className="text-red-500" dangerouslySetInnerHTML={{ __html: formatMathNotation(solution.question) }}></p>
                 </div>
 
                 <div>
                   <h5 className="font-medium mb-2">Solution Steps:</h5>
                   <ol className="list-decimal list-inside space-y-1">
                     {solution.steps.map((step, stepIndex) => (
-                      <li key={stepIndex} className="pl-2">{step}</li>
+                      <li key={stepIndex} className="pl-2">
+                        <span dangerouslySetInnerHTML={{ __html: formatMathNotation(step) }}></span>
+                      </li>
                     ))}
                   </ol>
                 </div>
 
                 <div className="pt-2 border-t">
                   <h5 className="font-medium mb-2">Final Answer:</h5>
-                  <p className="bg-muted/30 p-3 rounded-md">{solution.answer}</p>
+                  <p className="bg-muted/30 p-3 rounded-md" 
+                     dangerouslySetInnerHTML={{ __html: formatMathNotation(solution.answer) }}>
+                  </p>
                 </div>
 
                 {solution.explanation && (
                   <div className="pt-2 border-t">
                     <h5 className="font-medium mb-2">Additional Explanation:</h5>
-                    <p>{solution.explanation}</p>
+                    <p dangerouslySetInnerHTML={{ __html: formatMathNotation(solution.explanation) }}></p>
                   </div>
                 )}
               </CardContent>

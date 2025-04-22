@@ -1,12 +1,21 @@
-import React, { createContext, useContext, useState, useEffect } from "react";
+import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
 import { supabase } from "../integrations/supabase/client";
 import { User } from "@supabase/supabase-js";
 import { toast } from "../components/ui/sonner";
+import { disconnectWallet as disconnectWalletUtil } from '../lib/monad';
+
+// Define window.ethereum for TypeScript
+declare global {
+  interface Window {
+    ethereum: any;
+  }
+}
 
 interface UserWithMeta extends User {
   name: string | null;
   photoURL: string | null;
   isPremium: boolean;
+  role: 'admin' | 'developer' | 'user';
 }
 
 interface AuthContextType {
@@ -21,6 +30,8 @@ interface AuthContextType {
   deleteAccount: () => Promise<void>;
   unlinkGoogle: () => Promise<void>;
   updateProfile: (data: { name?: string; email?: string; photoURL?: string }) => Promise<void>;
+  isAdmin: () => boolean;
+  isDeveloper: () => boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -28,92 +39,116 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<UserWithMeta | null>(null);
   const [loading, setLoading] = useState(true);
+  const [initialCheckDone, setInitialCheckDone] = useState(false);
 
-  useEffect(() => {
-    // Set up auth state change listener first
-    const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log("Auth event:", event);
+  const enhanceUser = useCallback(async (baseUser: User): Promise<UserWithMeta | null> => {
+    try {
+      // Add caching for profile data
+      const cacheKey = `profile_${baseUser.id}`;
+      const cachedProfile = sessionStorage.getItem(cacheKey);
       
-      if (session?.user) {
-        try {
-          // Use setTimeout to prevent potential auth deadlocks
-          setTimeout(async () => {
-            const { data: profileData, error: profileError } = await supabase
-              .from('profiles')
-              .select('*')
-              .eq('id', session.user.id)
-              .maybeSingle();
-              
-            if (profileError) {
-              console.error("Error fetching profile:", profileError);
-            }
-            
-            const enhancedUser: UserWithMeta = {
-              ...session.user,
-              name: profileData?.name || session.user.email?.split('@')[0] || null,
-              photoURL: profileData?.avatar_url || null,
-              isPremium: false
-            };
-            
-            setUser(enhancedUser);
-            setLoading(false);
-          }, 0);
-        } catch (error) {
-          console.error("Error enhancing user:", error);
-          setLoading(false);
-        }
-      } else if (event === 'SIGNED_OUT') {
-        setUser(null);
-        setLoading(false);
+      if (cachedProfile) {
+        const profileData = JSON.parse(cachedProfile);
+        return {
+          ...baseUser,
+          name: profileData.name || baseUser.email?.split('@')[0] || null,
+          photoURL: profileData.avatar_url || null,
+          isPremium: false,
+          role: profileData.role || 'user'
+        };
       }
-    });
 
-    // Check existing session
-    const checkSession = async () => {
-      try {
-        const { data } = await supabase.auth.getSession();
-        
-        if (data.session?.user) {
-          // Use setTimeout to prevent potential auth deadlocks
-          setTimeout(async () => {
-            const { data: profileData, error: profileError } = await supabase
-              .from('profiles')
-              .select('*')
-              .eq('id', data.session.user.id)
-              .maybeSingle();
-              
-            if (profileError) {
-              console.error("Error fetching profile:", profileError);
-            }
-            
-            const enhancedUser: UserWithMeta = {
-              ...data.session.user,
-              name: profileData?.name || data.session.user.email?.split('@')[0] || null,
-              photoURL: profileData?.avatar_url || null,
-              isPremium: false
-            };
-            
-            setUser(enhancedUser);
-          }, 0);
-        }
-      } catch (error) {
-        console.error("Error checking session:", error);
-      } finally {
-        setLoading(false);
+      const { data: profileData } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', baseUser.id)
+        .maybeSingle();
+      
+      // Cache the profile data
+      if (profileData) {
+        sessionStorage.setItem(cacheKey, JSON.stringify(profileData));
       }
-    };
 
-    checkSession();
-
-    // Cleanup function
-    return () => {
-      authListener.subscription.unsubscribe();
-    };
+      return {
+        ...baseUser,
+        name: profileData?.name || baseUser.email?.split('@')[0] || null,
+        photoURL: profileData?.avatar_url || null,
+        isPremium: false,
+        role: profileData?.role || 'user'
+      };
+    } catch (error) {
+      console.error("Error enhancing user:", error);
+      // Fallback to basic user info if profile fetch fails
+      return {
+        ...baseUser,
+        name: baseUser.email?.split('@')[0] || null,
+        photoURL: null,
+        isPremium: false,
+        role: 'user'
+      };
+    }
   }, []);
 
+  useEffect(() => {
+    let mounted = true;
+
+    const initializeAuth = async () => {
+      try {
+        // Check for existing session
+        const { data: { session } } = await supabase.auth.getSession();
+        
+        if (session?.user && mounted) {
+          const enhancedUser = await enhanceUser(session.user);
+          if (mounted && enhancedUser) {
+            setUser(enhancedUser);
+          }
+        }
+
+        // Set up auth state change listener
+        const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+          if (!mounted) return;
+
+          if (session?.user && (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED')) {
+            const enhancedUser = await enhanceUser(session.user);
+            if (mounted && enhancedUser) {
+              setUser(enhancedUser);
+            }
+          } else if (event === 'SIGNED_OUT') {
+            setUser(null);
+          }
+        });
+
+        // Clean up function will use this subscription
+        return subscription;
+      } catch (error) {
+        console.error("Error in auth initialization:", error);
+        return null;
+      } finally {
+        if (mounted) {
+          setLoading(false);
+          setInitialCheckDone(true);
+        }
+      }
+    };
+
+    // Initialize auth and store the subscription
+    let subscription: { unsubscribe: () => void } | null = null;
+    initializeAuth().then(sub => {
+      subscription = sub;
+    });
+
+    return () => {
+      mounted = false;
+      if (subscription) {
+        subscription.unsubscribe();
+      }
+    };
+  }, [enhanceUser]);
+
   const signIn = async (email: string, password: string) => {
-    setLoading(true);
     try {
+      setLoading(true);
+      
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
@@ -121,10 +156,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       if (error) throw error;
       
+      // Pre-fetch profile data while auth state is updating
+      if (data.user) {
+        enhanceUser(data.user).catch(console.error);
+      }
+      
       toast.success("Signed in successfully!");
     } catch (error: any) {
       console.error(error);
-      toast.error(`Failed to sign in: ${error.message}`);
+      toast.error(error.message === "Invalid login credentials"
+        ? "Invalid email or password"
+        : `Failed to sign in: ${error.message}`);
       throw error;
     } finally {
       setLoading(false);
@@ -133,16 +175,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const signInWithGoogle = async () => {
     try {
-      // Get the current URL for redirection
+      setLoading(true);
       const origin = window.location.origin;
-      const redirectTo = `${origin}/auth/callback`;
-      
-      console.log("Starting Google login with redirect to:", redirectTo);
       
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: origin, // Use the app origin as the redirect URL
+          redirectTo: origin,
           queryParams: {
             access_type: 'offline',
             prompt: 'consent'
@@ -151,19 +190,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       });
       
       if (error) {
-        console.error("Google OAuth error details:", error);
-        toast.error(`Failed to sign in with Google: ${error.message}`);
+        console.error("Google OAuth error:", error);
+        toast.error("Failed to sign in with Google. Please try again.");
         throw error;
       }
     } catch (error: any) {
-      console.error("Detailed error:", error);
-      toast.error(`Failed to sign in with Google: ${error.message}`);
+      console.error("Google sign-in error:", error);
+      toast.error("Failed to sign in with Google. Please try again.");
       throw error;
+    } finally {
+      setLoading(false);
     }
   };
 
   const signUp = async (email: string, password: string, name: string) => {
-    setLoading(true);
     try {
       const { data, error } = await supabase.auth.signUp({
         email,
@@ -182,25 +222,29 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.error(error);
       toast.error(`Failed to create account: ${error.message}`);
       throw error;
-    } finally {
-      setLoading(false);
     }
   };
 
   const signOut = async () => {
-    setLoading(true);
     try {
       const { error } = await supabase.auth.signOut();
       
       if (error) throw error;
       
+      // Disconnect wallet when user signs out
+      try {
+        await disconnectWalletUtil();
+      } catch (walletError) {
+        console.error('Error disconnecting wallet during sign out:', walletError);
+        // Continue with sign out even if wallet disconnect fails
+      }
+      
+      // Don't set user to null here - let the auth listener handle it
       toast.success("Signed out successfully!");
     } catch (error: any) {
       console.error(error);
       toast.error(`Failed to sign out: ${error.message}`);
       throw error;
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -322,11 +366,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const isAdmin = () => {
+    return user?.role === 'admin';
+  };
+
+  const isDeveloper = () => {
+    return user?.role === 'developer';
+  };
+
   return (
     <AuthContext.Provider
       value={{
         user,
-        loading,
+        loading: loading && !initialCheckDone,
         signIn,
         signInWithGoogle,
         signUp,
@@ -336,6 +388,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         deleteAccount,
         unlinkGoogle,
         updateProfile,
+        isAdmin,
+        isDeveloper,
       }}
     >
       {children}

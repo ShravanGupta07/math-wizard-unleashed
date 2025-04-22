@@ -1,5 +1,4 @@
-
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useHistory } from "@/contexts/HistoryContext";
 import { Button } from "@/components/ui/button";
@@ -9,9 +8,11 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { AlertCircle, Camera, Check, FileText, Lock, PenLine, UserCheck } from "lucide-react";
+import { AlertCircle, Camera, Check, FileText, Lock, Medal, PenLine, Trophy, UserCheck } from "lucide-react";
 import { toast } from "@/components/ui/sonner";
 import { Link } from "react-router-dom";
+import { badgeService } from "@/services/badgeService";
+import { Badge as UserBadge, BADGE_CONFIGS } from "@/types/badge.types";
 
 const Profile = () => {
   const { user, loading, isAuthenticated } = useAuth();
@@ -19,6 +20,27 @@ const Profile = () => {
   const [name, setName] = useState(user?.name || "");
   const [email, setEmail] = useState(user?.email || "");
   const [isEditing, setIsEditing] = useState(false);
+  const [badges, setBadges] = useState<UserBadge[]>([]);
+  const [loadingBadges, setLoadingBadges] = useState(false);
+  
+  useEffect(() => {
+    if (user?.id) {
+      fetchUserBadges();
+    }
+  }, [user]);
+
+  const fetchUserBadges = async () => {
+    try {
+      setLoadingBadges(true);
+      const userBadges = await badgeService.getUserBadges(user!.id);
+      setBadges(userBadges);
+    } catch (error) {
+      console.error("Error fetching badges:", error);
+      toast.error("Failed to load badges");
+    } finally {
+      setLoadingBadges(false);
+    }
+  };
   
   if (loading) {
     return (
@@ -141,8 +163,9 @@ const Profile = () => {
         </Card>
         
         <Tabs defaultValue="stats">
-          <TabsList className="grid w-full grid-cols-2">
+          <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="stats">Statistics</TabsTrigger>
+            <TabsTrigger value="badges">Badges</TabsTrigger>
             <TabsTrigger value="plan">Subscription</TabsTrigger>
           </TabsList>
           
@@ -155,7 +178,7 @@ const Profile = () => {
               <CardContent>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   <div className="bg-muted/30 p-4 rounded-lg text-center">
-                    <div className="text-3xl font-bold text-primary">{history.length}</div>
+                    <div className="text-3xl font-bold text-primary">{Array.isArray(history) ? history.length : 0}</div>
                     <div className="text-sm text-muted-foreground">Problems Solved</div>
                   </div>
                   <div className="bg-muted/30 p-4 rounded-lg text-center">
@@ -199,6 +222,71 @@ const Profile = () => {
                     </div>
                   </div>
                 </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+          
+          <TabsContent value="badges" className="mt-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center">
+                  <Trophy className="h-5 w-5 text-primary mr-2" />
+                  Your Achievement Badges
+                </CardTitle>
+                <CardDescription>
+                  Badges you've earned by completing math challenges and exercises
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {loadingBadges ? (
+                  <div className="flex justify-center py-8">
+                    <div className="animate-pulse space-y-4">
+                      <div className="grid grid-cols-3 gap-4">
+                        {[...Array(3)].map((_, i) => (
+                          <div key={i} className="h-32 bg-muted rounded-lg"></div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                ) : badges.length > 0 ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                    {badges.map((badge) => {
+                      const badgeConfig = BADGE_CONFIGS[badge.category];
+                      return (
+                        <div 
+                          key={badge.id} 
+                          className="group relative overflow-hidden rounded-lg border border-border transition-all hover:shadow-md p-4 flex flex-col items-center text-center"
+                        >
+                          <div className={`${badgeConfig?.style.light.background} mb-3`}>
+                            <span className="text-3xl">{badge.icon}</span>
+                          </div>
+                          <h3 className="font-medium text-lg">{badge.name}</h3>
+                          <p className="text-sm text-muted-foreground mt-1">{badge.description}</p>
+                          <div className="text-xs text-muted-foreground mt-2 opacity-70">
+                            Earned on {new Date(badge.created_at).toLocaleDateString()}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="text-center py-8">
+                    <div className="inline-flex h-12 w-12 items-center justify-center rounded-full border border-dashed mb-4">
+                      <Medal className="h-6 w-6 text-muted-foreground" />
+                    </div>
+                    <h3 className="font-medium mb-1">No badges yet</h3>
+                    <p className="text-sm text-muted-foreground max-w-md mx-auto">
+                      Complete practice sets and games to earn achievement badges. Each badge represents mastery in different math topics!
+                    </p>
+                    <Button 
+                      className="mt-4" 
+                      variant="outline"
+                      onClick={() => window.location.href = "/practice"}
+                    >
+                      Start practicing
+                    </Button>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>

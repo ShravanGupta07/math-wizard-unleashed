@@ -1,9 +1,13 @@
 import React from "react";
 import { Button } from "./ui/button";
 import { ScrollArea } from "./ui/scroll-area";
-import { Plus, Settings, History, Calculator, ChevronDown, Search, ExternalLink } from "lucide-react";
+import { Plus, Settings, History, Calculator, ChevronDown, Search, ExternalLink, BarChart2 } from "lucide-react";
+import { Link } from "react-router-dom";
+import { useAuth } from "@/contexts/AuthContext";
 
 export function Sidebar() {
+  const { isAdmin, isDeveloper } = useAuth();
+
   return (
     <div className="flex flex-col w-[260px] bg-[#202123] h-full">
       {/* New Chat Button */}
@@ -82,6 +86,23 @@ export function Sidebar() {
           <Settings className="h-4 w-4" />
           Settings
         </Button>
+      </div>
+
+      <div className="px-3 py-2">
+        <h2 className="mb-2 px-4 text-lg font-semibold tracking-tight">
+          Analytics
+        </h2>
+        <div className="space-y-1">
+          {(isAdmin() || isDeveloper()) && (
+            <Link
+              to="/dashboard"
+              className="flex items-center rounded-lg px-3 py-2 text-sm font-medium hover:bg-accent hover:text-accent-foreground"
+            >
+              <BarChart2 className="mr-2 h-4 w-4" />
+              Dashboard
+            </Link>
+          )}
+        </div>
       </div>
     </div>
   );

@@ -204,143 +204,78 @@ export function QuickTools() {
 
   return (
     <Card className="w-full">
-      <CardContent className="p-6 space-y-6">
-        <Tabs defaultValue="story">
-          <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="story">📚 Story Problems</TabsTrigger>
-            <TabsTrigger value="equation">📐 Equation Solver</TabsTrigger>
-            <TabsTrigger value="converter">🔢 Number Converter</TabsTrigger>
-          </TabsList>
+      <CardContent className="p-6">
+        <div className="space-y-4">
+          <h2 className="text-2xl font-bold text-center mb-6">Story Problems</h2>
+          
+          {storyProblem ? (
+            <div className="space-y-4">
+              <div className="bg-muted p-4 rounded-lg">
+                <p className="text-lg">{storyProblem.problem}</p>
+              </div>
 
-          <TabsContent value="story" className="space-y-4">
-            <div className="flex justify-between items-center">
-              <h3 className="text-lg font-semibold">Math Story Problem</h3>
+              <div className="space-y-2">
+                <Input
+                  type="text"
+                  placeholder="Enter your answer..."
+                  value={userAnswer}
+                  onChange={(e) => setUserAnswer(e.target.value)}
+                />
+                <div className="flex gap-2">
+                  <Button onClick={checkAnswer} className="flex-1">
+                    Check Answer
+                  </Button>
+                  {storyProblem.hints && storyProblem.hints.length > 0 && (
+                    <Button onClick={showNextHint} variant="outline" className="flex-1">
+                      {showHint ? "Next Hint" : "Get Hint"}
+                    </Button>
+                  )}
+                </div>
+              </div>
+
+              {showHint && storyProblem.hints && storyProblem.hints.length > 0 && (
+                <div className="bg-muted p-4 rounded-lg">
+                  <h3 className="font-semibold mb-2">Hint {currentHintIndex + 1}:</h3>
+                  <p>{storyProblem.hints[currentHintIndex]}</p>
+                </div>
+              )}
+
+              {showSolution && (
+                <div className="bg-muted p-4 rounded-lg">
+                  <h3 className="font-semibold mb-2">Solution:</h3>
+                  <p>{storyProblem.solution}</p>
+                  {storyProblem.explanation && (
+                    <>
+                      <h3 className="font-semibold mt-4 mb-2">Explanation:</h3>
+                      <p>{storyProblem.explanation}</p>
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="text-center">
               <Button
-                variant="outline"
-                size="sm"
                 onClick={generateStoryProblem}
                 disabled={isLoading}
-                className="flex items-center gap-2"
+                size="lg"
+                className="w-full md:w-auto"
               >
                 {isLoading ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Generating...
+                  </>
                 ) : (
-                  <RefreshCw className="h-4 w-4" />
+                  <>
+                    <RefreshCw className="mr-2 h-4 w-4" />
+                    Generate Story Problem
+                  </>
                 )}
-                New Problem
               </Button>
             </div>
-
-            {storyProblem ? (
-              <div className="space-y-4">
-                <div className="p-4 bg-primary/5 rounded-lg">
-                  <p className="text-base">{storyProblem.problem}</p>
-                </div>
-
-                <div className="flex flex-col space-y-2">
-                  <div className="flex space-x-2">
-                    <Input
-                      value={userAnswer}
-                      onChange={(e) => setUserAnswer(e.target.value)}
-                      placeholder="Your answer..."
-                      className="font-mono"
-                    />
-                    <Button onClick={checkAnswer}>Check</Button>
-                  </div>
-                  
-                  <Button
-                    variant="ghost"
-                    onClick={showNextHint}
-                    className="w-full"
-                    disabled={!storyProblem.hints || currentHintIndex >= storyProblem.hints.length - 1}
-                  >
-                    {showHint ? "Next Hint" : "Need a Hint?"}
-                  </Button>
-                </div>
-
-                {showHint && (
-                  <div className="p-4 bg-blue-500/10 rounded-lg space-y-2">
-                    <p className="text-sm">
-                      💡 Hint {currentHintIndex + 1}: {storyProblem.hints[currentHintIndex]}
-                    </p>
-                  </div>
-                )}
-
-                {showSolution && (
-                  <div className="space-y-4">
-                    <div className="p-4 bg-primary/5 rounded-lg space-y-2">
-                      <h4 className="font-medium">Solution: {storyProblem.solution}</h4>
-                      <div className="text-sm text-muted-foreground space-y-2">
-                        <p className="font-medium">Step-by-step explanation:</p>
-                        {storyProblem.explanation.split('\n').map((step, index) => (
-                          <p key={index}>{step}</p>
-                        ))}
-                      </div>
-                    </div>
-                    
-                    <div className="p-4 bg-primary/5 rounded-lg">
-                      <h4 className="font-medium mb-2">Math Concepts Used:</h4>
-                      <ul className="list-disc list-inside text-sm text-muted-foreground">
-                        {storyProblem.mathConcepts.map((concept, index) => (
-                          <li key={index}>{concept}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div className="text-center py-8 text-muted-foreground">
-                Click "New Problem" to get started!
-              </div>
-            )}
-          </TabsContent>
-
-          <TabsContent value="equation" className="space-y-4">
-            <Input
-              value={equationInput}
-              onChange={(e) => setEquationInput(e.target.value)}
-              placeholder="Enter equation (e.g., 2x^2 + 3x - 5 = 0)"
-              className="font-mono"
-            />
-            <Button onClick={handleEquation} className="w-full">
-              Solve
-            </Button>
-            {equationResult && (
-              <div className="p-3 bg-primary/5 rounded-md">
-                <InlineMath math={equationResult} />
-              </div>
-            )}
-          </TabsContent>
-
-          <TabsContent value="converter" className="space-y-4">
-            <div className="flex space-x-2">
-              <Input
-                value={numberInput}
-                onChange={(e) => setNumberInput(e.target.value)}
-                placeholder="Enter number"
-                className="font-mono"
-              />
-              <select
-                value={conversionType}
-                onChange={(e) => setConversionType(e.target.value)}
-                className="px-3 py-2 rounded-md border border-input bg-background"
-              >
-                <option value="decimal">Decimal</option>
-                <option value="binary">Binary</option>
-                <option value="hexadecimal">Hexadecimal</option>
-              </select>
-            </div>
-            <Button onClick={handleNumberConversion} className="w-full">
-              Convert
-            </Button>
-            {conversionResult && (
-              <div className="p-3 bg-primary/5 rounded-md whitespace-pre-line">
-                {conversionResult}
-              </div>
-            )}
-          </TabsContent>
-        </Tabs>
+          )}
+        </div>
       </CardContent>
     </Card>
   );

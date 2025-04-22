@@ -207,7 +207,7 @@ const LatexInput: React.FC<LatexInputProps> = ({ onSave, onClear }) => {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 24 }}
             transition={{ duration: 0.4, type: 'spring' }}
-            className="mt-2 mb-2 px-6 py-4 bg-gradient-to-br from-purple-200/40 to-blue-100/30 rounded-2xl border border-purple-400/30 shadow-lg flex flex-col items-center animate-float"
+            className="mt-2 mb-2 px-6 py-4 bg-gradient-to-br from-purple-200/40 to-blue-100/30 rounded-2xl border border-purple-400/30 shadow-lg flex flex-col items-center"
           >
             <span className="text-xs text-purple-400 mb-2 font-mono">Preview:</span>
             {previewError ? (

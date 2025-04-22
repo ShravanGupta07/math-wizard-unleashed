@@ -1,15 +1,12 @@
-
-import type { Config } from "tailwindcss";
-
-export default {
-	darkMode: ["class"],
+/** @type {import('tailwindcss').Config} */
+module.exports = {
+	darkMode: 'class',
 	content: [
-		"./pages/**/*.{ts,tsx}",
-		"./components/**/*.{ts,tsx}",
-		"./app/**/*.{ts,tsx}",
-		"./src/**/*.{ts,tsx}",
+		"./src/**/*.{js,jsx,ts,tsx}",
+		"./pages/**/*.{js,jsx,ts,tsx}",
+		"./components/**/*.{js,jsx,ts,tsx}",
+		"./app/**/*.{js,jsx,ts,tsx}",
 	],
-	prefix: "",
 	theme: {
 		container: {
 			center: true,
@@ -140,6 +137,11 @@ export default {
 					900: '#4c1d95',
 					950: '#2e1065',
 				},
+				'space-dark': '#0A0F1C',
+				'space-darker': '#050A14',
+				'space-card': 'rgba(15, 23, 42, 0.8)',
+				'space-primary': '#3B82F6',
+				'space-secondary': '#8B5CF6',
 			},
 			borderRadius: {
 				lg: 'var(--radius)',
@@ -170,15 +172,15 @@ export default {
 						height: '0'
 					}
 				},
-				'float': {
+				float: {
 					'0%, 100%': { transform: 'translateY(0)' },
-					'50%': { transform: 'translateY(-10px)' }
+					'50%': { transform: 'translateY(-20px)' },
 				},
 				'pulse-light': {
 					'0%, 100%': { opacity: '1' },
 					'50%': { opacity: '0.7' }
 				},
-				'glow': {
+				glow: {
 					'0%, 100%': { boxShadow: '0 0 5px rgba(123, 97, 255, 0.5)' },
 					'50%': { boxShadow: '0 0 20px rgba(123, 97, 255, 0.8)' }
 				},
@@ -210,7 +212,7 @@ export default {
 			animation: {
 				'accordion-down': 'accordion-down 0.2s ease-out',
 				'accordion-up': 'accordion-up 0.2s ease-out',
-				'float': 'float 3s ease-in-out infinite',
+				'float': 'float 6s ease-in-out infinite',
 				'pulse-light': 'pulse-light 2s ease-in-out infinite',
 				'glow': 'glow 1.5s ease-in-out infinite',
 				'fade-in': 'fade-in 0.3s ease-out',
@@ -221,8 +223,20 @@ export default {
 				'slide-out-right': 'slide-out-right 0.3s ease-out',
 				'enter': 'fade-in 0.3s ease-out, scale-in 0.2s ease-out',
 				'exit': 'fade-out 0.3s ease-out, scale-out 0.2s ease-out'
-			}
+			},
+			transformStyle: {
+				'preserve-3d': 'preserve-3d',
+			},
+			backfaceVisibility: {
+				'hidden': 'hidden',
+			},
+			perspective: {
+				'1000': '1000px',
+			},
+			rotate: {
+				'y-180': 'rotateY(180deg)',
+			},
 		}
 	},
 	plugins: [require("tailwindcss-animate")],
-} satisfies Config;
+}
