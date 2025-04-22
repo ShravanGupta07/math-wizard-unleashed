@@ -14,8 +14,9 @@ import { toast } from "./ui/sonner";
 import { supabase } from "../integrations/supabase/client";
 import Katex from "katex";
 import "katex/dist/katex.min.css";
-import { jsPDF } from "jspdf";
-import html2canvas from "html2canvas";
+// Remove direct imports and use dynamic loading
+// import { jsPDF } from "jspdf";
+// import html2canvas from "html2canvas";
 import { motion, AnimatePresence } from "framer-motion";
 import { Separator } from './ui/separator';
 import { ScrollArea } from './ui/scroll-area';
@@ -24,6 +25,8 @@ import { ScrollArea } from './ui/scroll-area';
 declare global {
   interface Window {
     Recharts: any;
+    jspdf: any;
+    html2canvas: any;
   }
 }
 
@@ -715,119 +718,75 @@ const MathOutput: React.FC<MathOutputProps> = ({ problem, solution, loading }) =
   
   // Function to generate PDF
   const generatePDF = async () => {
+    if (!solution || !problem) return;
+    
     try {
-      toast.info("Generating PDF...");
-      
-      // Initialize jsPDF
-      const pdf = new jsPDF();
-      const pdfWidth = pdf.internal.pageSize.getWidth();
-      const pdfHeight = pdf.internal.pageSize.getHeight();
-      
-      // Set up styling constants
-      const margin = 20;
-      const contentWidth = pdfWidth - (2 * margin);
-      let yPosition = margin;
-      
-      // Header with logo and title
-      pdf.setFillColor(76, 29, 149); // violet-800
-      pdf.rect(0, 0, pdfWidth, 40, 'F');
-      pdf.setTextColor(255, 255, 255);
-      pdf.setFontSize(24);
-      pdf.setFont('helvetica', 'bold');
-      pdf.text('MathsWizard Solution', margin, 28);
-      yPosition = 50;
-
-      // Problem Statement Section
-      pdf.setFillColor(251, 146, 60, 0.1); // orange-400 with opacity
-      pdf.rect(margin - 5, yPosition - 5, contentWidth + 10, 40, 'F');
-      pdf.setDrawColor(251, 146, 60);
-      pdf.setLineWidth(0.5);
-      pdf.rect(margin - 5, yPosition - 5, contentWidth + 10, 40);
-      
-      pdf.setTextColor(0, 0, 0);
-      pdf.setFontSize(14);
-      pdf.setFont('helvetica', 'bold');
-      pdf.text('Problem Statement', margin, yPosition + 5);
-      
-      pdf.setFontSize(12);
-      pdf.setFont('helvetica', 'normal');
-      const problemText = problem?.problem || '';
-      const wrappedProblem = pdf.splitTextToSize(problemText, contentWidth);
-      pdf.text(wrappedProblem, margin, yPosition + 20);
-      yPosition += 50;
-
-      // Step-by-Step Solution Section
-      pdf.setFontSize(14);
-      pdf.setFont('helvetica', 'bold');
-      pdf.text('Step-by-Step Solution', margin, yPosition);
-      yPosition += 10;
-
-      if (solution?.steps && solution.steps.length > 0) {
-        solution.steps.forEach((step, index) => {
-          // Step circle with number
-          pdf.setFillColor(76, 29, 149); // violet-800
-          pdf.circle(margin + 10, yPosition + 5, 8, 'F');
-          pdf.setTextColor(255, 255, 255);
-          pdf.setFontSize(10);
-          pdf.text((index + 1).toString(), margin + 7, yPosition + 8);
-          
-          // Step content
-          pdf.setTextColor(0, 0, 0);
-          pdf.setFontSize(12);
-          const wrappedStep = pdf.splitTextToSize(step, contentWidth - 30);
-          pdf.text(wrappedStep, margin + 25, yPosition + 5);
-          
-          yPosition += (wrappedStep.length * 7) + 15;
-          
-          // Add new page if needed
-          if (yPosition > pdfHeight - margin) {
-            pdf.addPage();
-            yPosition = margin;
-          }
-        });
-      } else if (solution?.explanation) {
-        const wrappedExplanation = pdf.splitTextToSize(solution.explanation, contentWidth);
-        pdf.text(wrappedExplanation, margin, yPosition);
-        yPosition += (wrappedExplanation.length * 7) + 15;
+      // Check if jspdf and html2canvas are loaded, if not, load them
+      if (typeof window !== 'undefined') {
+        if (!window.jspdf) {
+          // Load jsPDF from CDN
+          await new Promise<void>((resolve, reject) => {
+            const script = document.createElement('script');
+            script.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
+            script.onload = () => resolve();
+            script.onerror = reject;
+            document.head.appendChild(script);
+          });
+        }
+        
+        if (!window.html2canvas) {
+          // Load html2canvas from CDN
+          await new Promise<void>((resolve, reject) => {
+            const script = document.createElement('script');
+            script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
+            script.onload = () => resolve();
+            script.onerror = reject;
+            document.head.appendChild(script);
+          });
+        }
       }
 
-      // Final Answer Section
-      if (yPosition > pdfHeight - 60) {
+      // Use the libraries via the window object
+      const element = document.getElementById('solution-content');
+      if (!element) return;
+
+      toast.info("Generating PDF...", { duration: 2000 });
+      
+      const canvas = await window.html2canvas(element, {
+        scale: 2,
+        logging: false,
+        useCORS: true,
+        allowTaint: true
+      });
+      
+      const imgData = canvas.toDataURL('image/jpeg', 1.0);
+      const pdf = new window.jspdf.jsPDF('p', 'mm', 'a4');
+      
+      const imgWidth = 210; // A4 width in mm
+      const pageHeight = 295; // A4 height in mm
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+      
+      let heightLeft = imgHeight;
+      let position = 0;
+      
+      pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight);
+      heightLeft -= pageHeight;
+      
+      // Add additional pages if needed
+      while (heightLeft > 0) {
+        position = heightLeft - imgHeight;
         pdf.addPage();
-        yPosition = margin;
+        pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight);
+        heightLeft -= pageHeight;
       }
-
-      pdf.setFillColor(139, 92, 246, 0.1); // violet-500 with opacity
-      pdf.rect(margin - 5, yPosition - 5, contentWidth + 10, 40, 'F');
-      pdf.setDrawColor(139, 92, 246);
-      pdf.setLineWidth(0.5);
-      pdf.rect(margin - 5, yPosition - 5, contentWidth + 10, 40);
-
-      pdf.setTextColor(0, 0, 0);
-      pdf.setFontSize(14);
-      pdf.setFont('helvetica', 'bold');
-      pdf.text('Final Answer', margin, yPosition + 5);
-
-      pdf.setFontSize(12);
-      pdf.setFont('helvetica', 'normal');
-      const finalAnswer = isTheoryQuestion(problem?.problem || '') 
-        ? formatTheoryAnswer(solution?.solution || '')
-        : solution?.solution || '';
-      const wrappedAnswer = pdf.splitTextToSize(finalAnswer, contentWidth);
-      pdf.text(wrappedAnswer, margin, yPosition + 20);
-
-      // Footer
-      pdf.setFontSize(10);
-      pdf.setTextColor(127, 140, 141);
-      const today = new Date().toLocaleDateString();
-      pdf.text(`Generated by MathsWizard on ${today}`, margin, pdfHeight - 10);
-      pdf.text('www.mathswizard.com', pdfWidth - margin - 40, pdfHeight - 10);
-
-      // Save the PDF
-      pdf.save('mathswizard-solution.pdf');
-      toast.success("PDF generated successfully!");
+      
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+      const filename = `math-solution-${timestamp}.pdf`;
+      
+      pdf.save(filename);
+      toast.success("PDF downloaded successfully!");
     } catch (error) {
-      console.error('Error generating PDF:', error);
+      console.error("Error generating PDF:", error);
       toast.error("Failed to generate PDF. Please try again.");
     }
   };
